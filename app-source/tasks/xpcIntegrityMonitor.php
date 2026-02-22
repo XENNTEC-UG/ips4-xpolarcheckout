@@ -23,7 +23,7 @@ if ( !\defined( '\IPS\SUITE_UNIQUE_KEY' ) )
  *
  * Runs every 5 minutes. Only local DB queries — no external API calls.
  */
-class _integrityMonitor extends \IPS\Task
+class _xpcIntegrityMonitor extends \IPS\Task
 {
 	/**
 	 * @brief	Forensics retention: 90 days

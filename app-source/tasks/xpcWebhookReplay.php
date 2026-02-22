@@ -20,7 +20,7 @@ if ( !\defined( '\IPS\SUITE_UNIQUE_KEY' ) )
 /**
  * Replay webhook events task.
  */
-class _webhookReplay extends \IPS\Task
+class _xpcWebhookReplay extends \IPS\Task
 {
     /**
      * @brief Store key for replay state.

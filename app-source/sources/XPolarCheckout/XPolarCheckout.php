@@ -69,6 +69,9 @@ class _XPolarCheckout extends \IPS\nexus\Gateway
             throw new \LogicException( 'xpolarcheckout_presentment_currency_mismatch' );
         }
 
+        /* Persist transaction so $transaction->id is available for success_url and metadata */
+        $transaction->save();
+
         $apiBase = static::resolveApiBase( $settings );
         $amountMinor = $this->moneyToMinorUnit( $transaction->amount );
 
@@ -127,6 +130,13 @@ class _XPolarCheckout extends \IPS\nexus\Gateway
         if ( $checkoutUrl === '' )
         {
             throw new \LogicException( 'gateway_err' );
+        }
+
+        /* Store Polar checkout ID on the transaction for webhook correlation */
+        if ( isset( $response['id'] ) && \is_string( $response['id'] ) )
+        {
+            $transaction->gw_id = $response['id'];
+            $transaction->save();
         }
 
         \IPS\Output::i()->redirect( \IPS\Http\Url::external( $checkoutUrl ) );

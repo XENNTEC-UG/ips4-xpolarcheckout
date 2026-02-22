@@ -1,7 +1,7 @@
 {
     "added": [
-        "webhookReplay",
-        "integrityMonitor"
+        "xpcWebhookReplay",
+        "xpcIntegrityMonitor"
     ],
     "edited": [],
     "removed": []

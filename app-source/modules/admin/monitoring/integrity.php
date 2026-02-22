@@ -182,7 +182,7 @@ class _integrity extends \IPS\Dispatcher\Controller
 
         try
         {
-            $task = new \IPS\xpolarcheckout\tasks\webhookReplay;
+            $task = new \IPS\xpolarcheckout\tasks\xpcWebhookReplay;
             $result = $task->execute( TRUE );
             \IPS\Session::i()->log( 'acplogs__xpolarcheckout_integrity_dry_run' );
 
@@ -207,7 +207,7 @@ class _integrity extends \IPS\Dispatcher\Controller
      */
     protected function executeReplayTaskNow()
     {
-        $task = new \IPS\xpolarcheckout\tasks\webhookReplay;
+        $task = new \IPS\xpolarcheckout\tasks\xpcWebhookReplay;
         $result = $task->execute();
 
         return array(
