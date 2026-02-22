@@ -20,6 +20,7 @@ Current runtime baseline is Phase 2 in-progress (`v1.0.1` / `10001`).
   - Missing signature headers -> HTTP `403` + forensic row.
   - Invalid signature -> HTTP `403` + forensic row.
   - Stale timestamp (>300s) -> HTTP `403` + forensic row.
+  - Note: current local environment is missing `xpc_webhook_forensics`; response checks pass, row-persistence check is pending until schema path is reapplied.
 
 3. Event-map transitions (Phase 2 B2)
   - `order.created` -> transaction moves to `gateway pending` (unless terminal).
@@ -52,3 +53,10 @@ Current runtime baseline is Phase 2 in-progress (`v1.0.1` / `10001`).
 
 - B3 end-to-end paid checkout + successful refund validation (real sandbox paid order fixture).
 - B4 live replay validation in ACP integrity panel (dry-run path is implemented and validated).
+
+## Automated Checks Already Executed
+
+- Gateway registration runtime check (`XPolarCheckout` appears in gateway map and roots).
+- Replay task dry-run + live-run execution checks.
+- Signature response checks (`missing`, `invalid`, `stale`).
+- Polar sandbox API contract checks for checkout creation and refund schema validation.

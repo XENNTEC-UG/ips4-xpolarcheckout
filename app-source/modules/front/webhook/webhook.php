@@ -62,7 +62,15 @@ class _webhook extends \IPS\Dispatcher\Controller
             return;
         }
 
-        $settings = \json_decode( $transaction->method->settings, TRUE );
+        $method = $transaction->method;
+        if ( !\is_object( $method ) || !isset( $method->settings ) )
+        {
+            $this->logForensicEvent( 'invalid_gateway_method', 400, $eventType, $eventId, $body );
+            \IPS\Output::i()->sendOutput( 'INVALID_GATEWAY_SETTINGS', 400 );
+            return;
+        }
+
+        $settings = \json_decode( $method->settings, TRUE );
         if ( !\is_array( $settings ) )
         {
             \IPS\Output::i()->sendOutput( 'INVALID_GATEWAY_SETTINGS', 400 );

@@ -33,5 +33,7 @@
 ## Working Rules
 
 - Keep active execution tracking in `docs/BACKLOG.md` and GitHub issue `#1`.
+- `docs/BACKLOG.md` now keeps only active/open tasks (manual user-required items are listed first).
+- Completed historical backlog detail is moved to `docs/archive/BACKLOG_ARCHIVE.md`.
 - Log completed milestones in `docs/CHANGELOG.md` with date and version.
 - Update this file if architecture entry points or status materially change.

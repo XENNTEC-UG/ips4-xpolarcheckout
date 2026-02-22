@@ -46,6 +46,16 @@
   - added subtotal/tax/refund display fields when provider payload includes values.
   - improved snapshot error observability by logging invoice status-extra write failures to `xpolarcheckout_snapshot`.
   - verified comparison behavior in IPS runtime (`applyIpsInvoiceTotalComparison`): exact match, tax-explained difference, and mismatch paths.
+- Added webhook runtime hardening for invalid transaction gateway references:
+  - webhook controller now returns `INVALID_GATEWAY_SETTINGS` (HTTP 400) when resolved transaction has non-object/invalid method data instead of triggering a PHP warning/500.
+  - file: `app-source/modules/front/webhook/webhook.php`.
+- Additional automated runtime validation pass completed:
+  - gateway registration runtime checks passed (`XPolarCheckout` in gateway map + roots).
+  - replay dry-run and live execution checks passed.
+  - signature smoke checks passed (`missing`, `invalid`, `stale`).
+  - Polar sandbox API contract checks passed:
+    - checkout payload accepted (`status=open`, checkout URL returned).
+    - refund payload schema accepted (unknown order returns expected provider error).
 
 ## 2026-02-21 - Baseline Hardening
 

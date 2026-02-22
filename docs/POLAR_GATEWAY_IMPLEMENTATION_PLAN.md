@@ -409,6 +409,21 @@ Rollback:
   - runtime lint in container passed for touched files (`php -l`).
   - IPS runtime probe passed for mismatch comparison logic (`applyIpsInvoiceTotalComparison` exact/tax-explained/mismatch scenarios).
 
+### 2026-02-22 - Additional Automated Validation + Webhook Guard
+
+- Added webhook guard for invalid transaction gateway references:
+  - when resolved transaction method cannot provide settings, webhook now returns `INVALID_GATEWAY_SETTINGS` (`400`) instead of throwing warning/500.
+  - file: `app-source/modules/front/webhook/webhook.php`.
+- Automated validation pass results:
+  - gateway registration checks passed (`XPolarCheckout` appears in gateway map and roots).
+  - replay task checks passed (dry-run structured output and live-run state write).
+  - signature response checks passed (`missing`, `invalid`, `stale`).
+  - Polar sandbox contract checks passed:
+    - checkout payload accepted with hosted URL returned.
+    - refund payload schema accepted (provider returns expected `Order not found` for unknown UUIDv4 order id).
+- Environment gap detected:
+  - local DB currently missing `xpc_webhook_forensics` table; forensic row persistence verification remains open until schema path is reapplied.
+
 ### Remaining Phase 2 Work
 
 - B3: complete end-to-end paid checkout + successful refund validation with a real sandbox paid order (`gw_id`).
