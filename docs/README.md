@@ -8,6 +8,7 @@
 - Gateway shell, webhook controller, integrity panel, and replay task scaffolding are in place.
 - Standard Webhooks signature validation hardening is implemented.
 - Full Polar checkout, refund, and replay provider calls are still in progress.
+- Local webhook forwarding via `polar-cli` Docker service is operational (SSE tunnel, auto-syncs all gateway settings from `.env`).
 
 ## Source Paths
 
@@ -15,6 +16,8 @@
 - Webhook controller: `app-source/modules/front/webhook/webhook.php`
 - Integrity ACP module: `app-source/modules/admin/monitoring/integrity.php`
 - Forensics schema: `app-source/data/schema.json` (`xpc_webhook_forensics`)
+- Polar CLI Docker: `docker/polar-cli/` (in main repo, not this submodule)
+- Polar CLI runbook: `docs/POLAR_CLI_LOCAL_DEBUG.md`
 
 ## Doc Read Order
 

@@ -1,5 +1,16 @@
 # X Polar Checkout App - Changelog
 
+## 2026-02-22 - Infrastructure: Polar CLI Docker Service
+
+- Added `polar-cli` Docker service for local webhook forwarding via Polar SSE endpoint.
+- Service auto-syncs all gateway settings (`webhook_secret`, `access_token`, `environment`, `default_product_id`) from `.env` to `nexus_paymethods` on every container start.
+- Added `.env` variables: `POLAR_ACCESS_TOKEN`, `POLAR_ORG_ID`, `POLAR_DEFAULT_PRODUCT_ID`, `POLAR_FORWARD_TO`, `POLAR_ENVIRONMENT`.
+- Docker profile: `polar`. Enable with `COMPOSE_PROFILES=...,polar,...`.
+- Custom Dockerfile with official Docker CE CLI + Polar CLI v1.2.0 binary.
+- Entrypoint handles SSE parsing, secret extraction, DB auto-sync, event forwarding with Standard Webhooks headers, and automatic reconnection.
+- Updated `docs/POLAR_CLI_LOCAL_DEBUG.md` with Docker approach (primary) and WSL fallback.
+- Note: Infrastructure files live in main repo (`docker/polar-cli/`, `compose.yaml`, `.env.example`), not in this submodule.
+
 ## 2026-02-22 - v1.0.1
 
 - Fixed install blocker where schema creation could fail on missing table `name` metadata for `xpc_webhook_forensics`.

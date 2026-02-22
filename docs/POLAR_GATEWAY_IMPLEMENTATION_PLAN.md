@@ -346,7 +346,26 @@ Rollback:
   - `php -l` passed on gateway source.
   - full `app-source` lint pass in container passed.
 
+### 2026-02-22 - Polar CLI Docker Service (Infrastructure)
+
+- Built custom Docker service (`polar-cli`) for local webhook forwarding via Polar SSE endpoint.
+- Service auto-syncs ALL gateway settings from `.env` to `nexus_paymethods` on every start:
+  - `webhook_secret` (ephemeral, from SSE session)
+  - `access_token` (Organization Access Token)
+  - `environment` (`sandbox` / `production`)
+  - `default_product_id` (generic Polar product for ad-hoc pricing)
+- No ACP configuration needed for dev — everything flows from `.env`.
+- New `.env` variables: `POLAR_ACCESS_TOKEN`, `POLAR_ORG_ID`, `POLAR_DEFAULT_PRODUCT_ID`, `POLAR_FORWARD_TO`, `POLAR_ENVIRONMENT`.
+- Docker profile: `polar` (add to `COMPOSE_PROFILES` to enable).
+- SSE endpoint: `https://sandbox-api.polar.sh/v1/cli/listen/{org_id}` with Bearer token auth.
+- **Important**: SSE tunnel secret format is a plain hex string (e.g. `xxxxxxxxxxxxxxxx...`), NOT `whsec_` prefixed. Signature verification in `webhook.php` must handle this format.
+- Default product: One generic "shell" product in Polar (`POLAR_DEFAULT_PRODUCT_ID`). `auth()` overrides the price per-transaction via `prices` array. No need to create a Polar product per Nexus product.
+- Files created: `docker/polar-cli/Dockerfile`, `docker/polar-cli/entrypoint.sh`.
+- Files modified: `compose.yaml`, `.env.example`, `AI_TOOLS.md`, `docs/POLAR_CLI_LOCAL_DEBUG.md`.
+- Verified: SSE connects, events forward (`organization.updated` -> 200), DB sync works, all 4 settings land in `nexus_paymethods.m_settings`.
+
 ### Remaining Phase 2 Work
 
+- **B1 CRITICAL**: Webhook signature verification has 4 bugs (see prior audit). The `checkSignature()` method needs to use Standard Webhooks format: `msg_id.timestamp.body` signed with base64-decoded secret, output as base64. Must fix before end-to-end payment testing works.
 - B3: checkout/refund provider-path sandbox validation and payload hardening.
 - B4: replay pipeline rewrite from placeholder to Polar delivery/event API workflow.
