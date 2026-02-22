@@ -514,7 +514,7 @@ class _XPolarCheckout extends \IPS\nexus\Gateway
 
         try
         {
-            $response = \IPS\Http\Url::external( $apiBase . '/webhooks/endpoints/' )
+            $response = \IPS\Http\Url::external( $apiBase . '/webhooks/endpoints' )
                 ->request( 20 )
                 ->setHeaders( array(
                     'Authorization' => 'Bearer ' . $accessToken,
@@ -715,7 +715,7 @@ class _XPolarCheckout extends \IPS\nexus\Gateway
         }
 
         $apiBase = static::resolveApiBase( $settings );
-        $response = \IPS\Http\Url::external( $apiBase . '/webhooks/endpoints/' )
+        $response = \IPS\Http\Url::external( $apiBase . '/webhooks/endpoints' )
             ->request( 20 )
             ->setHeaders( array(
                 'Authorization' => 'Bearer ' . $accessToken,
