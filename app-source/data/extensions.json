@@ -1,0 +1,10 @@
+{
+    "core": {
+        "MemberACPProfileBlocks": {
+            "StripeDisputeSummary": "IPS\\xpolarcheckout\\extensions\\core\\MemberACPProfileBlocks\\StripeDisputeSummary"
+        },
+        "AdminNotifications": {
+            "PaymentIntegrity": "IPS\\xpolarcheckout\\extensions\\core\\AdminNotifications\\PaymentIntegrity"
+        }
+    }
+}

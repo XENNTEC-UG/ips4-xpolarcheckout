@@ -1,0 +1,16 @@
+{
+    "admin": {
+        "monitoring": {
+            "default_controller": "integrity",
+            "protected": 0,
+            "default": 1
+        }
+    },
+    "front": {
+        "webhook": {
+            "default_controller": "",
+            "protected": false,
+            "default": null
+        }
+    }
+}

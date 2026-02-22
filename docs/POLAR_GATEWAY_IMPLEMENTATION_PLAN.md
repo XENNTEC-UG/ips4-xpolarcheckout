@@ -1,0 +1,470 @@
+# X Polar Checkout Gateway (IPS4) - Research and Implementation Plan
+
+Research date: February 22, 2026  
+Target app directory: `ips-dev-source/apps/xpolarcheckout`
+
+## 1) Goal
+
+Build a new IPS4 Nexus gateway app for Polar that preserves as much proven behavior from `xstripecheckout` as possible:
+
+- same gateway lifecycle integration pattern
+- same webhook-first transaction finalization model
+- same operational tooling (forensics, integrity checks, replay/recovery controls)
+- same ACP visibility standards
+
+## 2) Executive Decision
+
+Primary implementation strategy:
+
+1. Duplicate `xstripecheckout` as the engineering baseline.
+2. Keep cross-provider architecture, observability, and IPS glue code.
+3. Rewrite payment-provider logic from Stripe to Polar (checkout creation, webhook verification, event mapping, refunds).
+4. Explicitly de-scope Stripe-only features where Polar has no equivalent (mainly dispute-specific automation in v1).
+
+This is the fastest path to production with the lowest regression risk.
+
+## 3) Existing Polar IPS4 Gateway Availability Check
+
+I searched for an existing IPS4 Polar gateway through:
+
+- web queries for Invision + Polar + payment gateway
+- marketplace category scans (Invision Developers style listings)
+- GitHub-style discovery queries for IPS/Nexus gateway implementations
+
+Result:
+
+- no clear, maintained IPS4/Nexus Polar gateway found in public results as of February 22, 2026
+- plan assumes greenfield app implementation from our own `xstripecheckout` base
+
+## 4) Core Research Findings (Polar)
+
+## 4.1 API + SDK
+
+- Polar Core API base URLs:
+  - production: `https://api.polar.sh/v1`
+  - sandbox: `https://sandbox-api.polar.sh/v1`
+- Auth uses Organization Access Token (OAT) via Bearer token.
+- Official PHP SDK package: `polar-sh/sdk`.
+- SDK supports `setServer('sandbox')` for sandbox testing.
+
+## 4.2 Checkout
+
+- Checkout sessions are created via `POST /v1/checkouts/`.
+- `products` is required.
+- `metadata` is supported and copied to resulting order/subscription.
+- `success_url` supports `checkout_id={CHECKOUT_ID}` placeholder.
+- `external_customer_id` and `customer_id` support customer reconciliation and email-lock behavior.
+- Ad-hoc prices are supported via `prices` mapping per product (critical for dynamic IPS invoice totals).
+
+## 4.3 Orders and Payment State
+
+- Order statuses: `pending`, `paid`, `refunded`, `partially_refunded`.
+- Polar explicitly recommends `order.paid` as source-of-truth event for successful payment.
+- `order.created` may be `pending`, not yet paid.
+
+## 4.4 Refunds
+
+- Refund API: `POST /v1/refunds/`.
+- Requires `order_id`, `reason`, `amount`.
+- Refund webhooks exist: `refund.created`, `refund.updated`.
+- Order refund webhook: `order.refunded` (full or partial).
+
+## 4.5 Webhooks
+
+- Polar webhooks follow Standard Webhooks.
+- Signature headers used in examples:
+  - `webhook-id`
+  - `webhook-signature`
+  - `webhook-timestamp`
+- Raw body validation is required.
+- Important gotcha: Standard Webhooks verification expects base64-encoded secret when using those libraries directly.
+- Delivery characteristics (official guidance):
+  - up to 10 retries with backoff
+  - 10-second timeout
+  - endpoint auto-disabled after 10 consecutive failures
+  - target handler should respond quickly (recommended ~2 seconds) and process async
+
+## 5) Current Stripe App Inventory (What We Can Reuse)
+
+Primary implementation assets in `xstripecheckout`:
+
+- Gateway class:
+  - `app-source/sources/XStripeCheckout/XStripeCheckout.php`
+- Webhook controller:
+  - `app-source/modules/front/webhook/webhook.php`
+- Operational tasks:
+  - `app-source/tasks/webhookReplay.php`
+  - `app-source/tasks/integrityMonitor.php`
+- ACP monitoring:
+  - `app-source/modules/admin/monitoring/integrity.php`
+  - `app-source/modules/admin/monitoring/forensics.php`
+- Hook registration and UI hooks:
+  - gateway model hook
+  - invoice/print settlement rendering hooks
+  - coupon naming hook
+  - profile tab hook
+  - app JS-loading hook (Stripe-specific)
+- Extensions:
+  - admin notification extension
+  - member ACP block
+- Schema:
+  - `xsc_webhook_forensics` forensic log table
+
+## 6) Portability Matrix (Stripe -> Polar)
+
+| Capability | Current Stripe Behavior | Polar Equivalent | Action |
+|---|---|---|---|
+| Gateway registration hook | Adds gateway class to `\IPS\nexus\Gateway::gateways()` | Same IPS pattern | Reuse (rename only) |
+| Checkout creation flow | Creates Stripe Checkout Session, redirects with Stripe.js | Create Polar checkout session, redirect to `checkout.url` | Rewrite provider calls, keep IPS flow |
+| Customer linking | Stripe customer/profile mapping + metadata | `customer_id` / `external_customer_id` + metadata | Adapt |
+| Metadata correlation | Stores `ips_transaction_id`, `ips_invoice_id`, `ips_member_id` | Same via checkout metadata -> order metadata | Reuse design |
+| Webhook endpoint provisioning in `testSettings()` | Creates Stripe endpoint automatically | Create Polar webhook endpoint automatically | Adapt |
+| Webhook signature verification | Stripe HMAC format | Standard Webhooks validation | Rewrite |
+| Idempotency (event dedupe) | transaction `extra` key map | same pattern, keyed by `webhook-id` | Reuse |
+| Transaction processing lock | MySQL `GET_LOCK`/`RELEASE_LOCK` | provider-agnostic | Reuse |
+| Payment success finalization | `checkout.session.*` -> capture/mark paid | `order.paid` primary event | Adapt event mapping |
+| Pending state handling | `processing` maps to gateway pending | `order.created` pending maps to gateway pending | Adapt |
+| Refund status updates | `charge.refunded` | `order.refunded` + `refund.updated` | Adapt |
+| Refund API | `POST /v1/refunds` on Stripe by payment intent | `POST /v1/refunds/` by `order_id` | Rewrite |
+| Forensics DB + ACP viewer | Logs invalid signatures/payloads | same forensic model needed | Reuse with rename |
+| Replay task | Pull Stripe events + local re-forward | use Polar webhook delivery/event redelivery APIs | Rewrite |
+| Integrity monitor + ACP notifications | local health checks + alerts | same architecture | Reuse/adapt |
+| Tax readiness checks | Stripe Tax readiness API snapshot | no direct equivalent needed | Drop/replace |
+| Dispute automation and evidence | Stripe dispute webhooks + API evidence draft + optional ban | no equivalent webhook set in primary docs | De-scope v1 |
+| Settlement UI block | Stripe-specific invoice/PI/tax fields | Polar order/refund snapshot fields | Adapt template logic |
+| Stripe.js hook injection | loads `https://js.stripe.com/v3/` | not needed for simple redirect checkout | Drop |
+| Coupon display hook | force coupon label | gateway-agnostic | Reuse |
+| ACP member dispute block | dispute/refund summary | keep refund summary; dispute details uncertain | Adapt/de-scope dispute data |
+
+## 7) Recommended App Bootstrap
+
+Create app by cloning `xstripecheckout` into `xpolarcheckout` and then performing a controlled rename/refactor.
+
+## 7.1 Clone Base (code + metadata)
+
+Copy and systematically rename:
+
+- namespace `IPS\xstripecheckout` -> `IPS\xpolarcheckout`
+- gateway class name `XStripeCheckout` -> `XPolarCheckout`
+- language keys, hook IDs, module names, task IDs, extension class names
+- schema table prefix from `xsc_` to `xpg_` (or agreed naming)
+
+## 7.2 Immediate removals after clone
+
+- Stripe JS injection hook (`code_loadJs.php`)
+- Stripe-only tax readiness logic and Stripe Tax API polling
+- Stripe dispute evidence push flow (v1)
+
+## 8) Polar Gateway Design Blueprint
+
+## 8.1 Gateway settings (v1)
+
+Minimum required:
+
+- `environment` (`sandbox` or `production`)
+- `access_token`
+- `webhook_endpoint_id`
+- `webhook_url`
+- `webhook_secret`
+- `default_product_id` (for generic checkout)
+
+Recommended operational settings:
+
+- `replay_lookback`
+- `replay_overlap`
+- `replay_max_events`
+- `allow_discount_codes` (default false to avoid mismatch with IPS invoice-calculated discounts)
+
+Optional:
+
+- `organization_id` and/or `organization_slug` (if needed for dashboard URL generation)
+
+## 8.2 Checkout payload strategy
+
+V1 strategy for maximum compatibility with IPS invoice dynamics:
+
+- use one configurable Polar product ID (generic "IPS Invoice" product)
+- set dynamic per-transaction price via ad-hoc `prices` object
+- pass correlation metadata:
+  - `ips_transaction_id`
+  - `ips_invoice_id`
+  - `ips_member_id`
+  - `gateway_id`
+- pass `external_customer_id` using IPS member ID (or stable internal customer key)
+- redirect user to returned `checkout.url`
+
+## 8.3 Tax model risk (critical)
+
+Polar is MoR and computes tax; IPS/Nexus can also compute tax.  
+We must choose one tax source-of-truth before production.
+
+Decision required:
+
+1. Polar-calculated tax as source-of-truth (recommended for MoR alignment), or
+2. IPS-calculated tax as source-of-truth with strict reconciliation logic
+
+Without this decision, over/under-charge risk exists.
+
+## 9) Webhook Processing Blueprint
+
+Endpoint:
+
+- `app=xpolarcheckout&module=webhook&controller=webhook`
+
+Processing pipeline:
+
+1. Read raw body from `php://input`.
+2. Collect required signature headers.
+3. Verify signature (Standard Webhooks compliant).
+4. Fail closed (`403`) on invalid signature; log forensic entry.
+5. Resolve transaction via metadata (`ips_transaction_id`) and/or `gw_id` mapping.
+6. Enforce idempotency using event delivery ID (`webhook-id`).
+7. Enforce transaction lock via DB mutex.
+8. Persist normalized snapshot to transaction and invoice extras.
+9. Ack quickly with 2xx.
+
+## 9.1 Event mapping v1
+
+| Polar event | IPS action |
+|---|---|
+| `order.created` | set transaction to `STATUS_GATEWAY_PENDING` (if not paid/refused), store order snapshot |
+| `order.paid` | set `gw_id=order.id`, run fraud/capture path (`checkFraudRulesAndCapture`), persist paid snapshot |
+| `order.updated` | optional secondary update path (status reconciliation) |
+| `order.refunded` | set `STATUS_REFUNDED` or `STATUS_PART_REFUNDED` based on refund amounts |
+| `refund.updated` | persist refund metadata; optionally reconcile final refund status |
+| `checkout.updated` | snapshot/debug enrichment only (no payment finalization) |
+
+Subscription events (`subscription.*`) can be added in v2 for recurring-specific workflows.
+
+## 10) Refund Blueprint
+
+Gateway `refund()` implementation:
+
+- call Polar `POST /v1/refunds/`
+- map `transaction->gw_id` as `order_id`
+- map reasons:
+  - `duplicate` -> `duplicate`
+  - `fraudulent` -> `fraudulent`
+  - `requested_by_customer` -> `customer_request`
+  - fallback -> `other`
+- return Polar refund ID if available
+- final IPS status updates remain webhook-driven
+
+## 11) Monitoring, Replay, and Forensics
+
+## 11.1 Forensics
+
+Keep forensic model from Stripe app:
+
+- table `xpg_webhook_forensics`
+- log failure reason, event type/id, IP, HTTP status, payload snippet, timestamp
+- ACP viewer module with filters/search
+
+## 11.2 Integrity panel
+
+Preserve current ACP integrity dashboard pattern:
+
+- webhook configured/not configured
+- replay/recovery recency
+- webhook errors in last 24h
+- mismatch counts
+- endpoint drift checks
+
+Replace Stripe-specific checks with Polar-relevant checks.
+
+## 11.3 Replay/recovery
+
+Replace Stripe replay logic with Polar-native recovery:
+
+- use webhook delivery/event APIs where possible:
+  - list webhook deliveries
+  - redeliver failed events
+- keep manual ACP actions:
+  - run recovery now
+  - dry run
+
+If delivery API schema is insufficient, fallback v1:
+
+- rely on Polar native retry + dashboard redelivery
+- keep monitor task but reduce replay complexity
+
+## 11.4 Local Debug via Polar CLI
+
+We will use the official Polar CLI (`polarsource/cli`) for local webhook debugging.
+
+Important platform note (as of release `v1.2.0`, February 6, 2026):
+
+- official prebuilt binaries are published for `darwin-arm64`, `darwin-x64`, and `linux-x64`
+- no native Windows binary is published in releases
+- for this Windows workspace, local debugging should run via WSL/Linux
+
+Recommended workflow in this stack:
+
+1. Install Polar CLI in WSL/Linux:
+   - `curl -fsSL https://polar.sh/install.sh | bash`
+2. Authenticate:
+   - `polar login`
+3. Start forwarding to local IPS webhook route:
+   - `polar listen \"https://<your-local-host>/index.php?app=xpolarcheckout&module=webhook&controller=webhook\"`
+4. Copy the secret shown by `polar listen`.
+5. Temporarily set the gateway webhook secret in ACP to that listen-session secret for signature validation tests.
+6. Trigger sandbox purchases/refunds and validate end-to-end handling in IPS logs + forensics panel.
+
+Implementation follow-up for developer ergonomics:
+
+- add a small debug utility in ACP to indicate "CLI tunnel mode" and avoid secret confusion
+- add `docs/TEST_RUNTIME.md` steps for CLI session start/stop + secret rotation checklist
+
+## 12) UI and Hook Strategy
+
+Keep and adapt:
+
+- `code_GatewayModel.php` (gateway registration)
+- `invoiceViewHook.php`, `theme_sc_clients_settle.php`, `theme_sc_print_settle.php` (render Polar settlement summary)
+- `couponNameHook.php` (if still desired)
+
+Remove or replace:
+
+- `code_loadJs.php` (Stripe.js injection)
+
+Member ACP block:
+
+- convert dispute-heavy block into Polar payment/refund summary in v1
+- optionally re-introduce dispute insights later if Polar dispute data/events are fully documented and stable
+
+## 13) Implementation Phases
+
+## Phase 0 - Repository setup
+
+1. Create dedicated component repo/submodule for `xpolarcheckout`.
+2. Copy `xstripecheckout` baseline into new app folder.
+3. Complete namespace/identifier renaming.
+
+## Phase 1 - Compile-safe provider swap
+
+1. Replace Stripe API constants and endpoints with Polar client calls.
+2. Remove Stripe-only hooks/settings.
+3. Ensure app installs and gateway appears in ACP.
+
+## Phase 2 - Checkout + settings
+
+1. Implement Polar checkout session creation and redirect.
+2. Implement settings form for token/environment/webhook/product.
+3. Implement `testSettings()` webhook endpoint create/update logic.
+
+## Phase 3 - Webhooks
+
+1. Implement Standard Webhooks verification.
+2. Implement event routing and status mapping.
+3. Implement idempotency + lock + snapshot persistence.
+
+## Phase 4 - Refunds
+
+1. Implement Polar refund API call.
+2. Implement refund reason mapping.
+3. Ensure webhook-driven final state reconciliation.
+
+## Phase 5 - Monitoring and recovery
+
+1. Port forensics table + ACP viewer.
+2. Port integrity dashboard and notification extension.
+3. Rewrite replay task to Polar recovery model.
+
+## Phase 6 - UI polish + docs + tests
+
+1. Update invoice/print hooks to Polar labels/fields.
+2. Update docs contract files (`README.md`, `FLOW.md`, `FEATURES.MD`, `TEST_RUNTIME.md`, `CHANGELOG.md`).
+3. Build runtime/manual test scripts analogous to current Stripe app quality bar.
+
+## 14) Test Plan (Acceptance)
+
+Must-pass scenarios:
+
+1. Gateway appears and can be configured with sandbox token.
+2. Checkout redirect works and returns user to IPS after completion.
+3. `order.created` marks transaction pending when applicable.
+4. `order.paid` finalizes transaction and marks invoice paid.
+5. Duplicate webhook delivery does not double-process.
+6. Invalid signature returns `403` and records forensic log.
+7. Full refund sets `STATUS_REFUNDED`.
+8. Partial refund sets `STATUS_PART_REFUNDED`.
+9. Integrity panel shows recent run and error metrics.
+10. Manual replay/recovery control works (or clearly documented fallback behavior).
+
+## 15) Risks and Mitigations
+
+| Risk | Impact | Mitigation |
+|---|---|---|
+| Tax model mismatch (IPS tax + Polar tax) | Over/undercharge | Lock tax strategy before build completion; validate with sandbox matrix |
+| Webhook validation implementation error | Payment flow break | Use official Standard Webhooks approach, add forensic logging and signature tests |
+| API/docs drift | Runtime failures | Pin SDK version, verify endpoints in integration tests, keep changelog watchlist |
+| Currency constraints | Checkout creation failures | Validate currency support at gateway `checkValidity()` |
+| Missing dispute-equivalent events | Loss of Stripe dispute features | Explicitly de-scope in v1 and document gap |
+
+## 16) Open Decisions (Need Confirmation)
+
+1. Final app name: `xpolarcheckout` (confirmed).
+2. Tax source-of-truth:
+   - Polar MoR tax (recommended), or
+   - IPS tax with reconciliation.
+3. V1 scope:
+   - one-time invoice payments only, or
+   - include subscription lifecycle handling immediately.
+4. Webhook verification implementation:
+   - vendor Standard Webhooks library, or
+   - custom implementation of Standard Webhooks spec.
+5. Dispute feature parity:
+   - defer to v2, or
+   - add partial polling-based dispute visibility in v1.
+
+## 17) Definition of Done
+
+The Polar gateway is done when:
+
+- it installs cleanly as a separate IPS app
+- checkout -> webhook -> paid/refund transitions are reliable and idempotent
+- observability tooling (forensics + integrity + recovery controls) is operational
+- docs and runtime tests match existing repository standards
+- Stripe app remains untouched and independently functional
+
+## 18) Sources Used
+
+Polar official docs:
+
+- `https://polar.sh/docs/introduction`
+- `https://polar.sh/docs/integrate/sdk/php`
+- `https://polar.sh/docs/api-reference/introduction`
+- `https://polar.sh/docs/api-reference/checkouts/create-session`
+- `https://polar.sh/docs/api-reference/orders/get`
+- `https://polar.sh/docs/api-reference/refunds/create`
+- `https://polar.sh/docs/api-reference/webhooks/endpoints/create`
+- `https://polar.sh/docs/api-reference/webhooks/endpoints/get`
+- `https://polar.sh/docs/api-reference/webhooks/endpoints/update`
+- `https://polar.sh/docs/api-reference/webhooks/order.paid`
+- `https://polar.sh/docs/api-reference/webhooks/order.refunded`
+- `https://polar.sh/docs/api-reference/webhooks/checkout.updated`
+- `https://polar.sh/docs/api-reference/webhooks/refund.updated`
+- `https://polar.sh/docs/integrate/webhooks/endpoints`
+- `https://polar.sh/docs/integrate/webhooks/delivery`
+- `https://polar.sh/docs/integrate/webhooks/events`
+- `https://polar.sh/docs/integrate/webhooks/locally`
+- `https://polar.sh/docs/guides/create-checkout-session`
+
+Polar SDK docs:
+
+- `https://raw.githubusercontent.com/polarsource/polar-php/main/README.md`
+- `https://raw.githubusercontent.com/polarsource/polar-php/main/docs/sdks/checkouts/README.md`
+- `https://raw.githubusercontent.com/polarsource/polar-php/main/docs/sdks/webhooks/README.md`
+- `https://raw.githubusercontent.com/polarsource/polar-php/main/docs/sdks/refunds/README.md`
+
+Polar CLI docs:
+
+- `https://github.com/polarsource/cli`
+- `https://raw.githubusercontent.com/polarsource/cli/main/README.md`
+- `https://raw.githubusercontent.com/polarsource/cli/main/install.sh`
+- `https://raw.githubusercontent.com/polarsource/cli/main/src/commands/listen.ts`
+
+Internal app baseline:
+
+- `ips-dev-source/apps/xstripecheckout/app-source/...` (gateway, webhook, tasks, hooks, extensions, schema, ACP modules)
+- `ips-dev-source/apps/xstripecheckout/docs/...` (README/FLOW/FEATURES/TEST docs)

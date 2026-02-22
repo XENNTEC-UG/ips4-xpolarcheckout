@@ -1,0 +1,30 @@
+{
+    "code_GatewayModel": {
+        "type": "C",
+        "class": "\\IPS\\nexus\\Gateway"
+    },
+    "code_loadJs": {
+        "type": "C",
+        "class": "\\IPS\\nexus\\Application"
+    },
+    "theme_sc_clients_settle": {
+        "type": "S",
+        "class": "\\IPS\\Theme\\class_nexus_front_clients"
+    },
+    "theme_sc_print_settle": {
+        "type": "S",
+        "class": "\\IPS\\Theme\\class_nexus_global_invoices"
+    },
+    "code_memberProfileTab": {
+        "type": "C",
+        "class": "\\IPS\\core\\extensions\\core\\MemberACPProfileTabs\\Main"
+    },
+    "invoiceViewHook": {
+        "type": "C",
+        "class": "\\IPS\\nexus\\modules\\front\\clients\\invoices"
+    },
+    "couponNameHook": {
+        "type": "C",
+        "class": "\\IPS\\nexus\\Coupon"
+    }
+}

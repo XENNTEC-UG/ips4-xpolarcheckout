@@ -1,0 +1,22 @@
+{
+    "normal": {
+        "added": [
+            "module__xpolarcheckout_monitoring",
+            "xpolarcheckout_integrity_title",
+            "xpolarcheckout_integrity_intro",
+            "xpolarcheckout_integrity_replay_now",
+            "xpolarcheckout_integrity_replay_success",
+            "xpolarcheckout_integrity_replay_no_events",
+            "xpolarcheckout_integrity_replay_failed",
+            "acplogs__xpolarcheckout_integrity_replay",
+            "integrity_view"
+        ],
+        "edited": [],
+        "removed": []
+    },
+    "js": {
+        "added": [],
+        "edited": [],
+        "removed": []
+    }
+}

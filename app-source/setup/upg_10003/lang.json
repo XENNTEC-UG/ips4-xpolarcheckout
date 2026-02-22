@@ -1,0 +1,49 @@
+{
+    "normal": {
+        "added": [
+            "xpolarcheckout_methods",
+            "xpolarcheckout_methods_all",
+            "xpolarcheckout_method",
+            "xpolarcheckout_methods_card",
+            "xpolarcheckout_methods_acss_debit",
+            "xpolarcheckout_methods_affirm",
+            "xpolarcheckout_methods_afterpay_clearpay",
+            "xpolarcheckout_methods_alipay",
+            "xpolarcheckout_methods_au_becs_debit",
+            "xpolarcheckout_methods_bacs_debit",
+            "xpolarcheckout_methods_bancontact",
+            "xpolarcheckout_methods_blik",
+            "xpolarcheckout_methods_boleto",
+            "xpolarcheckout_methods_cashapp",
+            "xpolarcheckout_methods_customer_balance",
+            "xpolarcheckout_methods_eps",
+            "xpolarcheckout_methods_fpx",
+            "xpolarcheckout_methods_giropay",
+            "xpolarcheckout_methods_grabpay",
+            "xpolarcheckout_methods_ideal",
+            "xpolarcheckout_methods_klarna",
+            "xpolarcheckout_methods_konbini",
+            "xpolarcheckout_methods_link",
+            "xpolarcheckout_methods_oxxo",
+            "xpolarcheckout_methods_p24",
+            "xpolarcheckout_methods_paynow",
+            "xpolarcheckout_methods_pix",
+            "xpolarcheckout_methods_promptpay",
+            "xpolarcheckout_methods_sepa_debit",
+            "xpolarcheckout_methods_sofort",
+            "xpolarcheckout_methods_us_bank_account",
+            "xpolarcheckout_methods_wechat_pay",
+            "xpolarcheckout_address_collection",
+            "xpolarcheckout_address_collection_desc"
+        ],
+        "edited": [
+            "xpolarcheckout_countries"
+        ],
+        "removed": []
+    },
+    "js": {
+        "added": [],
+        "edited": [],
+        "removed": []
+    }
+}

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<build>
+ <module key="admin/monitoring"><![CDATA[{"default_controller":"integrity","protected":0,"default":1}]]></module>
+ <module key="front/webhook"><![CDATA[{"default_controller":"","protected":false,"default":null}]]></module>
+ <task frequency="P0Y0M0DT0H15M0S">webhookReplay</task>
+ <hook key="code_GatewayModel"><![CDATA[{"type":"C","class":"\\IPS\\nexus\\Gateway"}]]></hook>
+ <hook key="code_loadJs"><![CDATA[{"type":"C","class":"\\IPS\\nexus\\Application"}]]></hook>
+ <hook key="theme_sc_clients_settle"><![CDATA[{"type":"S","class":"\\IPS\\Theme\\class_nexus_front_clients"}]]></hook>
+ <hook key="theme_sc_print_settle"><![CDATA[{"type":"S","class":"\\IPS\\Theme\\class_nexus_global_invoices"}]]></hook>
+ <extension app="core" type="MemberACPProfileBlocks">StripeDisputeSummary</extension>
+</build>

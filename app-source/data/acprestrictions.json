@@ -1,0 +1,10 @@
+{
+    "monitoring": {
+        "integrity": {
+            "integrity_view": "integrity_view"
+        },
+        "forensics": {
+            "forensics_view": "forensics_view"
+        }
+    }
+}

@@ -1,0 +1,40 @@
+{
+    "normal": {
+        "added": {
+            "0": "__app_xpolarcheckout",
+            "1": "gateway__XPolarCheckout",
+            "2": "gateway__XPolarCheckout_desc",
+            "3": "xpolarcheckout_credits",
+            "4": "xpolarcheckout_secret",
+            "5": "xpolarcheckout_publishable",
+            "6": "xpolarcheckout_webhook",
+            "8": "module__xpolarcheckout_webhook",
+            "9": "xpolarcheckout_webhook_secret",
+            "10": "xpolarcheckout_tax",
+            "11": "xpolarcheckout_tax_enable",
+            "12": "xpolarcheckout_tax_enable_desc",
+            "13": "xpolarcheckout_countries",
+            "14": "xpolarcheckout_tax_behavior",
+            "15": "xpolarcheckout_tax_behavior_inclusive",
+            "16": "xpolarcheckout_tax_behavior_exclusive",
+            "17": "xpolarcheckout_tax_behavior_desc",
+            "18": "xpolarcheckout_payment_invoice",
+            "19": "xpolarcheckout_reason_duplicate",
+            "20": "xpolarcheckout_reason_fraudulent",
+            "21": "xpolarcheckout_reason_requested_by_customer",
+            "22": "xpolarcheckout_refund_settings",
+            "23": "xpolarcheckout_refund_ban",
+            "24": "xpolarcheckout_refund_ban_desc",
+            "25": "xpolarcheckout_webhook_url",
+            "26": "xpolarcheckout_webhook_url_desc",
+            "27": "xpolarcheckout_webhook_secret_desc"
+        },
+        "edited": [],
+        "removed": []
+    },
+    "js": {
+        "added": [],
+        "edited": [],
+        "removed": []
+    }
+}

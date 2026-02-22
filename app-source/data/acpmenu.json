@@ -1,0 +1,18 @@
+{
+    "monitoring": {
+        "integrity": {
+            "tab": "nexus",
+            "controller": "integrity",
+            "do": "",
+            "restriction": "integrity_view",
+            "subcontrollers": ""
+        },
+        "forensics": {
+            "tab": "nexus",
+            "controller": "forensics",
+            "do": "",
+            "restriction": "forensics_view",
+            "subcontrollers": ""
+        }
+    }
+}

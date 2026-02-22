@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<language>
+ <app key="xpolarcheckout" version="10011">
+  <word key="__app_xpolarcheckout" js="0">X Polar Checkout Gateway</word>
+  <word key="gateway__XPolarCheckout" js="0">X Polar Checkout</word>
+  <word key="gateway__XPolarCheckout_desc" js="0">X Polar Checkout Gateway for Invision Community</word>
+  <word key="xpolarcheckout_credits" js="0">Keys</word>
+  <word key="xpolarcheckout_secret" js="0">Secret key</word>
+  <word key="xpolarcheckout_publishable" js="0">Publishable Key</word>
+  <word key="xpolarcheckout_webhook" js="0">Webhook</word>
+  <word key="module__xpolarcheckout_webhook" js="0">Stripe Checkout Webhook</word>
+  <word key="xpolarcheckout_webhook_secret" js="0">Webhook Signing secret</word>
+  <word key="xpolarcheckout_tax" js="0">Tax</word>
+  <word key="xpolarcheckout_tax_enable" js="0">Enable Tax calculation?</word>
+  <word key="xpolarcheckout_tax_enable_desc" js="0">For tax collection purposes, Checkout uses billing and shipping addresses to determine the customer’s location.</word>
+  <word key="xpolarcheckout_countries" js="0">Countries and address</word>
+  <word key="xpolarcheckout_tax_behavior" js="0">Tax Behavior</word>
+  <word key="xpolarcheckout_tax_behavior_inclusive" js="0">Inclusive</word>
+  <word key="xpolarcheckout_tax_behavior_exclusive" js="0">Exclusive</word>
+  <word key="xpolarcheckout_tax_behavior_desc" js="0"><![CDATA[<strong>Inclusive</strong> tax is tax that doesn't change the final purchase price - the price the buyer sees already includes it. Examples of inclusive tax include VAT and GST outside of the US.<br><strong>Exclusive</strong> tax is tax that changes the final purchase price - the listed price the buyer sees doesn't include it, and it's added to the total. An example of exclusive tax is US sales tax.]]></word>
+  <word key="xpolarcheckout_payment_invoice" js="0">Payment for Invoice #%s</word>
+  <word key="xpolarcheckout_reason_duplicate" js="0">Duplicate Payment</word>
+  <word key="xpolarcheckout_reason_fraudulent" js="0">Fraudulent</word>
+  <word key="xpolarcheckout_reason_requested_by_customer" js="0">Requested by customer</word>
+  <word key="xpolarcheckout_refund_settings" js="0">Refund settings</word>
+  <word key="xpolarcheckout_refund_ban" js="0">Ban member after refund?</word>
+  <word key="xpolarcheckout_refund_ban_desc" js="0">You may want to ban a member after refunding their payment. The ban will be permanent.</word>
+  <word key="xpolarcheckout_webhook_url" js="0">Webhook URL</word>
+  <word key="xpolarcheckout_webhook_url_desc" js="0">After saving the settings for the first time, URL of your webhook will appear here.</word>
+  <word key="xpolarcheckout_webhook_secret_desc" js="0">After saving the settings for the first time, webhook key will appear here.</word>
+  <word key="xpolarcheckout_methods" js="0">Payment Methods</word>
+  <word key="xpolarcheckout_methods_all" js="0">All available methods</word>
+  <word key="xpolarcheckout_method" js="0">Select method</word>
+  <word key="xpolarcheckout_methods_card" js="0">Card</word>
+  <word key="xpolarcheckout_methods_acss_debit" js="0">ACSS Debit</word>
+  <word key="xpolarcheckout_methods_affirm" js="0">Affirm</word>
+  <word key="xpolarcheckout_methods_afterpay_clearpay" js="0"><![CDATA[Afterpay & Clearpay]]></word>
+  <word key="xpolarcheckout_methods_alipay" js="0">Alipay</word>
+  <word key="xpolarcheckout_methods_au_becs_debit" js="0">BECS Direct Debit Australia</word>
+  <word key="xpolarcheckout_methods_bacs_debit" js="0">Bacs Direct Debit</word>
+  <word key="xpolarcheckout_methods_bancontact" js="0">Bancontact</word>
+  <word key="xpolarcheckout_methods_blik" js="0">Blik</word>
+  <word key="xpolarcheckout_methods_boleto" js="0">Boleto</word>
+  <word key="xpolarcheckout_methods_cashapp" js="0">Cash App</word>
+  <word key="xpolarcheckout_methods_customer_balance" js="0">Customer Balance</word>
+  <word key="xpolarcheckout_methods_eps" js="0">EPS (Australia)</word>
+  <word key="xpolarcheckout_methods_fpx" js="0">FPX (Malaysia)</word>
+  <word key="xpolarcheckout_methods_giropay" js="0">Giropay</word>
+  <word key="xpolarcheckout_methods_grabpay" js="0">GrabPay</word>
+  <word key="xpolarcheckout_methods_ideal" js="0">iDEAL</word>
+  <word key="xpolarcheckout_methods_klarna" js="0">Klarna</word>
+  <word key="xpolarcheckout_methods_konbini" js="0">Konbini</word>
+  <word key="xpolarcheckout_methods_link" js="0">Link</word>
+  <word key="xpolarcheckout_methods_oxxo" js="0">OXXO</word>
+  <word key="xpolarcheckout_methods_p24" js="0">Przelewy24</word>
+  <word key="xpolarcheckout_methods_paynow" js="0">PayNow</word>
+  <word key="xpolarcheckout_methods_pix" js="0">Pix</word>
+  <word key="xpolarcheckout_methods_promptpay" js="0">PromptPay</word>
+  <word key="xpolarcheckout_methods_sepa_debit" js="0">SEPA Direct Debit</word>
+  <word key="xpolarcheckout_methods_sofort" js="0">SOFORT</word>
+  <word key="xpolarcheckout_methods_us_bank_account" js="0">US Bank account</word>
+  <word key="xpolarcheckout_methods_wechat_pay" js="0">WeChat Pay</word>
+  <word key="xpolarcheckout_address_collection" js="0">Collect Billing address</word>
+  <word key="xpolarcheckout_address_collection_desc" js="0">Specify whether Checkout should collect the customer’s billing address.</word>
+  <word key="module__xpolarcheckout_monitoring" js="0">Monitoring</word>
+  <word key="xpolarcheckout_integrity_title" js="0">Stripe Checkout Integrity</word>
+  <word key="xpolarcheckout_integrity_intro" js="0">Operational visibility panel for Stripe webhook health, replay status, and Stripe-vs-IPS settlement mismatches.</word>
+  <word key="xpolarcheckout_integrity_replay_now" js="0">Run Webhook Replay Now</word>
+  <word key="xpolarcheckout_integrity_replay_success" js="0">Webhook replay executed successfully.</word>
+  <word key="xpolarcheckout_integrity_replay_no_events" js="0">Webhook replay executed and found no replayable events.</word>
+  <word key="xpolarcheckout_integrity_replay_failed" js="0">Webhook replay execution failed. Check logs for details.</word>
+  <word key="acplogs__xpolarcheckout_integrity_replay" js="0">Ran Stripe webhook replay from integrity panel</word>
+  <word key="integrity_view" js="0">View integrity panel</word>
+ </app>
+</language>

@@ -1,0 +1,405 @@
+# Stripe Checkout App - Changelog
+
+## 2026-02-21 — v1.1.4
+
+- **Security**: Added timestamp freshness validation to `checkSignature()` in webhook handler. Rejects webhook signatures older than 10 minutes (600s tolerance) to prevent replay attacks. Logs rejected timestamps with drift details for debugging.
+
+## 2026-02-18
+
+- Tax & registration improvements:
+  - Made mismatch detection tax-aware: when the Stripe-vs-IPS total difference equals the Stripe Tax amount, it is shown as informational "Tax collected (Stripe)" instead of an orange mismatch warning. Only unexplained differences trigger warnings. New snapshot fields: `total_difference_minor`, `total_difference_display`, `total_difference_tax_explained`.
+  - Tax Readiness registration summary now shows type labels: "DE (EU OSS)" for OSS registrations, "DE (IOSS)" for Import OSS, instead of bare "DE, DE" duplicates.
+  - Files changed: `modules/front/webhook/webhook.php`, `hooks/theme_sc_clients_settle.php`, `hooks/theme_sc_print_settle.php`, `sources/XPolarCheckout/XPolarCheckout.php`, `dev/lang.php`
+
+- Browser-test bug fixes:
+  - Fixed critical `ParseError: unexpected token "@"` in front-end invoice detail pages caused by `$taxId@last` in settlement theme hook content strings. Replaced with `<div>`/`<br>` separated output in both `theme_sc_clients_settle.php` and `theme_sc_print_settle.php`.
+  - Fixed ACP dispute summary block not appearing on member profile: added missing `memberACPProfileTitle_xpolarcheckout_StripeDisputeSummary` lang key and created `code_memberProfileTab` hook to inject block into Member View tab's left column.
+  - Files changed: `hooks/theme_sc_clients_settle.php`, `hooks/theme_sc_print_settle.php`, `hooks/code_memberProfileTab.php` (new), `data/hooks.json`, `dev/lang.php`
+
+- Replay hardening:
+  - Capped `replay_max_events` form max and runtime clamp to `100` (Stripe API limit).
+  - Added `types[]` server-side filter to Stripe events fetch — eliminates event-type starvation.
+  - Added missing `menu__xpolarcheckout_monitoring_integrity` lang key.
+
+- P2 Payment integrity alerting:
+  - Files:
+    - `ips-dev-source/apps/xpolarcheckout/app-source/extensions/core/AdminNotifications/PaymentIntegrity.php` (new)
+    - `ips-dev-source/apps/xpolarcheckout/app-source/tasks/integrityMonitor.php` (new)
+    - `ips-dev-source/apps/xpolarcheckout/app-source/sources/XPolarCheckout/XPolarCheckout.php`
+    - `ips-dev-source/apps/xpolarcheckout/app-source/data/extensions.json`
+    - `ips-dev-source/apps/xpolarcheckout/app-source/data/tasks.json`
+    - `ips-dev-source/apps/xpolarcheckout/app-source/dev/lang.php`
+    - `ips-dev-source/apps/xpolarcheckout/docs/automation/test_integrity_alerting.php` (new)
+  - AdminNotification extension with 4 alert types: webhook errors, replay stale, mismatches, tax not collecting.
+  - Lightweight integrityMonitor task (5-min interval, local DB queries only).
+  - Shared collectAlertStats() helper on gateway class.
+  - Admin opt-in/out via ACP Notification Settings.
+  - 14 new lang strings, automation test A17.
+
+- P1 Replay task runtime controls in ACP:
+  - Files:
+    - `ips-dev-source/apps/xpolarcheckout/app-source/sources/XPolarCheckout/XPolarCheckout.php`
+    - `ips-dev-source/apps/xpolarcheckout/app-source/tasks/webhookReplay.php`
+    - `ips-dev-source/apps/xpolarcheckout/app-source/modules/admin/monitoring/integrity.php`
+    - `ips-dev-source/apps/xpolarcheckout/app-source/dev/lang.php`
+    - `ips-dev-source/apps/xpolarcheckout/docs/automation/test_replay_controls.php` (new)
+  - Added ACP gateway settings for replay lookback (300-86400s), overlap (60-1800s), and max events per run (10-500).
+  - Replay task now reads configurable values from gateway settings with fallback to class constants and safe clamping.
+  - Implemented paginated Stripe event fetching (`has_more` + `starting_after`) bounded by MAX_PAGES_PER_RUN (10) and MAX_RUNTIME_SECONDS (120).
+  - Added dry-run mode: `execute(TRUE)` fetches and filters events without forwarding or saving state.
+  - Added "Dry Run" button in integrity panel replay section (CSRF-protected, ACP audit logged).
+  - Integrity panel now displays configured replay values and uses configured lookback for staleness threshold.
+  - Added 11 new lang strings for replay controls and dry-run.
+  - Added automation test A16 (replay controls assertions).
+  - Test results: 15/15 automation scripts PASS (A1-A14, A16), A15 targeted guard PASS.
+
+- Webhook capture race safety guard (non-blocking transaction mutex):
+  - Files:
+    - `ips-dev-source/apps/xpolarcheckout/app-source/modules/front/webhook/webhook.php`
+    - `ips-dev-source/apps/xpolarcheckout/docs/automation/test_webhook_capture_lock.php` (new)
+    - `ips-dev-source/apps/xpolarcheckout/docs/TEST_RUNTIME.md`
+  - Added per-transaction non-blocking DB lock guard (`GET_LOCK`/`RELEASE_LOCK`) around capture/resolution paths for:
+    - `checkout.session.completed`
+    - `checkout.session.async_payment_succeeded/failed`
+  - Guard behavior:
+    - skips concurrent duplicate processing attempts with HTTP `200` (no double-capture path),
+    - fail-open on lock infrastructure errors so valid payment flow is not blocked.
+  - Added automation test A15 to assert lock helper presence and wiring in both webhook capture paths.
+  - Test results (targeted): webhook syntax lint PASS, A15 PASS, chargeback automation PASS, discount safety automation PASS.
+
+- P1 ACP tax readiness indicator:
+  - Files:
+    - `ips-dev-source/apps/xpolarcheckout/app-source/sources/XPolarCheckout/XPolarCheckout.php`
+    - `ips-dev-source/apps/xpolarcheckout/app-source/modules/admin/monitoring/integrity.php`
+    - `ips-dev-source/apps/xpolarcheckout/app-source/dev/lang.php`
+    - `ips-dev-source/apps/xpolarcheckout/docs/automation/test_integrity_panel_stats.php` (updated)
+    - `ips-dev-source/apps/xpolarcheckout/docs/automation/test_tax_readiness_status.php` (new)
+  - Added `fetchTaxReadiness()` static helper: fetches `GET /v1/tax/settings` + `GET /v1/tax/registrations`, with error handling and logging.
+  - Added `normalizeTaxReadiness()` static helper: normalizes Stripe response into canonical states (`collecting`, `not_collecting`, `unknown`, `error`) with registration count and summary.
+  - Added `applyTaxReadinessSnapshotToSettings()` reusable helper to refresh and merge snapshot into settings.
+  - Integrated best-effort tax readiness refresh into `testSettings()` on gateway save (never blocks save).
+  - Added read-only tax readiness summary to ACP gateway settings form (status, registrations, last checked, warning).
+  - Extended integrity panel `collectIntegrityStats()` with tax readiness snapshot from stored settings.
+  - New "Tax Readiness" status card in integrity grid (green/yellow/red).
+  - New "Tax Readiness" detail section: status, last checked, registrations, error, warning text, refresh button.
+  - New `refreshTaxReadiness()` ACP action with CSRF protection, gateway settings persistence, and ACP audit logging.
+  - Added 13 new lang strings for tax readiness feature.
+  - Extended integrity panel stats test with tax readiness keys.
+  - Added automation test A14 (tax readiness normalization: methods, mock logic, integration, lang strings).
+  - Test results: 14/14 automation scripts PASS (A1-A14).
+
+## 2026-02-17
+
+- P0 hardening follow-up: coupon safety + stale endpoint-ID recovery
+  - Files:
+    - `ips-dev-source/apps/xpolarcheckout/app-source/sources/XPolarCheckout/XPolarCheckout.php`
+    - `ips-dev-source/apps/xpolarcheckout/docs/automation/test_discount_coupon_safety.php` (new)
+    - `ips-dev-source/apps/xpolarcheckout/docs/TEST_RUNTIME.md`
+    - `ips-dev-source/apps/xpolarcheckout/docs/BACKLOG.md`
+  - `createOneTimeStripeCoupon()` now sanitizes and caps coupon `name` to Stripe max 40 chars.
+  - `auth()` now treats Stripe coupon creation as best-effort: on API failure, logs `xpolarcheckout_coupon` and falls back to single-summary line items so checkout remains available.
+  - Added `buildDiscountSafetyFallbackLineItems()` helper to centralize fallback payload.
+  - `fetchWebhookEndpoint()` now continues to legacy URL-match fallback when stored `webhook_endpoint_id` lookup returns an error payload/no `id`.
+  - Added automation test A13 for these guardrails.
+  - Test results: 13/13 automation scripts PASS (A1-A13).
+
+- P0 Webhook endpoint sync & drift detection:
+  - Files:
+    - `ips-dev-source/apps/xpolarcheckout/app-source/sources/XPolarCheckout/XPolarCheckout.php`
+    - `ips-dev-source/apps/xpolarcheckout/app-source/tasks/webhookReplay.php`
+    - `ips-dev-source/apps/xpolarcheckout/app-source/modules/admin/monitoring/integrity.php`
+    - `ips-dev-source/apps/xpolarcheckout/app-source/dev/lang.php`
+    - `ips-dev-source/apps/xpolarcheckout/docs/automation/test_webhook_sync.php` (new)
+  - Consolidated `REQUIRED_WEBHOOK_EVENTS` constant on gateway class (single source of truth for 6 event types).
+  - Refactored `testSettings()` to use constant and store `webhook_endpoint_id` from Stripe response.
+  - Removed duplicate `REPLAY_EVENT_TYPES` from webhookReplay task; now references gateway constant.
+  - Added `fetchWebhookEndpoint()` static helper: fast path via stored endpoint ID, legacy fallback via URL match.
+  - Added `syncWebhookEvents()` static helper: updates endpoint events + API version on Stripe.
+  - Extended integrity panel `collectIntegrityStats()` with drift detection: missing events, extra events, URL match, API version match.
+  - New "Webhook Endpoint" status card in integrity grid (green/yellow/red).
+  - New "Webhook Endpoint" detail section: endpoint ID, URL, status, API version, events checklist, sync button.
+  - New `syncEvents()` ACP action with CSRF protection, ACP audit logging, and legacy endpoint ID backfill.
+  - Added 9 new lang strings for webhook sync feature.
+  - Added automation test A12 (12 assertions covering constant, helpers, integrity panel, lang strings, drift logic).
+  - Test results: 12/12 automation scripts PASS (A1-A12).
+
+- Tax evidence capture — VAT ID collection + customer tax identity (Stripe as source of truth):
+  - Files:
+    - `ips-dev-source/apps/xpolarcheckout/app-source/sources/XPolarCheckout/XPolarCheckout.php`
+    - `ips-dev-source/apps/xpolarcheckout/app-source/modules/front/webhook/webhook.php`
+    - `ips-dev-source/apps/xpolarcheckout/app-source/hooks/theme_sc_clients_settle.php`
+    - `ips-dev-source/apps/xpolarcheckout/app-source/hooks/theme_sc_print_settle.php`
+    - `ips-dev-source/apps/xpolarcheckout/app-source/dev/lang.php`
+    - `ips-dev-source/apps/xpolarcheckout/docs/automation/test_tax_evidence.php` (new)
+  - New ACP setting `tax_id_collection` (YesNo, default OFF) under Tax header. When enabled, Stripe Checkout asks B2B customers for VAT/Tax IDs.
+  - `buildStripeSnapshot()` now captures 3 new fields: `customer_tax_exempt` (none/exempt/reverse), `customer_tax_ids` (array of type+value), `tax_id_collection_enabled` (audit trail).
+  - Client and print settlement hooks display tax exemption status (reverse charge highlighted) and customer tax IDs when present.
+  - No outbound writes to Stripe — Stripe is source of truth for all tax decisions.
+  - Closes backlog items: "VAT ID mapping configuration" and "Tax evidence enrichment".
+  - Closes operational gap: "B2B VAT ID passthrough".
+  - Test results: 10/10 automation scripts PASS.
+
+- P2 ACP dispute visibility on member profile:
+  - Files:
+    - `ips-dev-source/apps/xpolarcheckout/app-source/extensions/core/MemberACPProfileBlocks/StripeDisputeSummary.php` (new)
+    - `ips-dev-source/apps/xpolarcheckout/app-source/data/extensions.json` (new)
+    - `ips-dev-source/apps/xpolarcheckout/app-source/data/build.xml`
+    - `ips-dev-source/apps/xpolarcheckout/app-source/dev/lang.php`
+  - New `MemberACPProfileBlocks` extension shows dispute/refund summary on ACP member profile.
+  - Displays: chargeback count (with latest reason/date/evidence deadline), refund count, ban status, link to integrity panel.
+  - Returns NULL for members with no disputes/refunds (no empty widget noise).
+  - Wrapped in `\Throwable` catch — never breaks the ACP member page.
+
+- P3 Stripe Radar risk data capture (read-only):
+  - Files:
+    - `ips-dev-source/apps/xpolarcheckout/app-source/modules/front/webhook/webhook.php`
+    - `ips-dev-source/apps/xpolarcheckout/app-source/hooks/theme_sc_clients_settle.php`
+    - `ips-dev-source/apps/xpolarcheckout/app-source/hooks/theme_sc_print_settle.php`
+    - `ips-dev-source/apps/xpolarcheckout/app-source/dev/lang.php`
+    - `ips-dev-source/apps/xpolarcheckout/docs/automation/test_dispute_visibility.php` (new)
+  - `buildStripeSnapshot()` now captures 4 Radar fields from `latest_charge.outcome`: `risk_level`, `risk_score`, `outcome_type`, `outcome_seller_message`.
+  - Client and print settlement hooks display payment method (type/brand/last4) and risk level with score.
+  - Elevated/highest risk levels highlighted with warning style.
+  - No automated actions — display only.
+  - Added automation test `test_dispute_visibility.php` covering extensions, Radar fields, hooks, lang strings, and mock extraction.
+  - Test results: 9/9 automation scripts PASS.
+
+- P1 chargeback protection & fraud visibility:
+  - Files:
+    - `ips-dev-source/apps/xpolarcheckout/app-source/modules/front/webhook/webhook.php`
+    - `ips-dev-source/apps/xpolarcheckout/app-source/sources/XPolarCheckout/XPolarCheckout.php`
+    - `ips-dev-source/apps/xpolarcheckout/app-source/dev/lang.php`
+    - `ips-dev-source/apps/xpolarcheckout/docs/automation/test_chargeback_protection.php`
+  - Auto-ban on chargeback:
+    - New ACP setting `dispute_ban` (YesNo, default ON) under "Fraud Protection" header in gateway settings.
+    - `charge.dispute.created` handler: if `dispute_ban` enabled, sets `temp_ban = -1` (permanent ban) and logs `dispute_ban` member action with dispute ID.
+    - Removed incorrect `refund_ban` setting and all refund-ban logic. In Stripe, `charge.refunded` is always merchant-initiated; customer-initiated reversals come as disputes.
+    - Admin unbans from ACP member edit. Dispute won restores transaction but ban stays until admin review.
+  - Comprehensive dispute data extraction:
+    - `charge.dispute.created`: stores full dispute object in `t_extra['xpolarcheckout_dispute']` (id, reason, status, amount, currency, created, evidence_due_by, is_charge_refundable, charge_id, payment_intent).
+    - `charge.dispute.closed`: updates dispute data with final status (won/lost) and closed_at timestamp. Added history entry (`dispute_closed_won`/`dispute_closed_lost`) that was previously missing.
+  - Comprehensive refund data extraction:
+    - `charge.refunded`: stores refund details in `t_extra['xpolarcheckout_refund']` (charge_id, amount, amount_refunded, currency, refunded flag, latest refund id/reason/created/amount).
+  - Checkout snapshot enrichment:
+    - PaymentIntent fetch now uses `?expand[]=latest_charge` to get full charge object in one API call.
+    - `buildStripeSnapshot()` now includes: `customer_email`, `customer_name`, `customer_address`, `payment_method_type`, `card_last4`, `card_brand`, `card_fingerprint`.
+  - Bug fixes (consistency):
+    - All three event handler catch blocks (`charge.refunded`, `charge.dispute.created`, `charge.dispute.closed`) upgraded from `\Exception` to `\Throwable`.
+    - Fixed typo `UNABLE_TO_PROCESS_DISPUT` → `UNABLE_TO_PROCESS_DISPUTE` in dispute handlers.
+    - Added missing log category `'xpolarcheckout_webhook'` in dispute handler catch blocks.
+  - Added automation test `test_chargeback_protection.php` (12 assertions covering settings, data extraction shapes, ban logic, closure metadata, snapshot enrichment, source validation).
+  - Test results: 8/8 automation scripts PASS.
+
+- P1 runtime validation: async payment and dispute webhook handlers verified end-to-end:
+  - File: `ips-dev-source/apps/xpolarcheckout/app-source/modules/front/webhook/webhook.php`
+  - Bug fixed: async handler threw unlogged HTTP 500 because (a) `throw new \Exception('UNABLE_TO_LOAD_TRANSACTION')` instead of returning 200 like other handlers, (b) no try/catch around processing block, (c) catch used `\Exception` which doesn't catch PHP `\Error`.
+  - Changes:
+    - Transaction load failure now returns `200 TRANSACTION_NOT_FOUND` (matching refund/dispute handlers).
+    - Added try/catch with `\Throwable` around the entire processing block.
+    - Unexpected `payment_status` values now log and return 200 instead of throwing.
+  - Test results:
+    - `async_payment_succeeded`: `pend` → `gwpd` → `okay`, invoice `paid`. HTTP 200.
+    - `async_payment_failed`: `pend` → `gwpd` → `fail` with history note. HTTP 200.
+    - Idempotency: re-delivery to terminal transaction returns 200, no state change.
+    - `charge.dispute.created`: `okay` → `dspd`, invoice `canc`. HTTP 200.
+    - `charge.dispute.closed (won)`: `dspd` → `okay`, invoice `paid`. HTTP 200.
+    - `charge.dispute.closed (lost)`: `dspd` → `rfnd`, invoice stays `canc`. HTTP 200.
+    - Full lifecycle tested: created → closed(won) → created → closed(lost).
+
+- Fixed coupon/discount amounts not being passed to Stripe Checkout sessions (P0 bug):
+  - File: `ips-dev-source/apps/xpolarcheckout/app-source/sources/XPolarCheckout/XPolarCheckout.php`
+  - Root cause: `buildStripeLineItems()` skipped negative-amount invoice items (coupons, gateway discounts) because Stripe Checkout doesn't support negative line item amounts. The Stripe session was created with full-price items only.
+  - Fix: Added `calculateInvoiceDiscount()` to detect and sum all negative invoice items, and `createOneTimeStripeCoupon()` to create a one-time Stripe coupon via API. The coupon is attached to the Checkout session via the `discounts` parameter.
+  - Added math verification safety net: if the sum of (positive line items - discount) doesn't match the transaction amount, the code falls back to a single summary line item at the correct total. This catches rounding edge cases, partial payments, or any unexpected discount combinations.
+  - Covers: multiple products, multiple coupons, percentage discounts, gateway discounts from other apps, product-specific coupons — all handled because IPS Nexus pre-calculates all discount types into fixed negative-amount line items.
+  - Stripe checkout page now shows: individual product line items at full price + a named discount line (using the coupon/discount names from Nexus).
+  - Added lang string `xpolarcheckout_coupon_discount` for fallback coupon display name.
+  - Verified with real invoice data (invoice #66) and simulated multi-product/multi-discount scenarios.
+
+## 2026-02-16
+
+- Added taxability/jurisdiction snapshot support for Stripe Tax reconciliation:
+  - Files:
+    - `ips-dev-source/apps/xpolarcheckout/app-source/modules/front/webhook/webhook.php`
+    - `ips-dev-source/apps/xpolarcheckout/app-source/hooks/theme_sc_clients_settle.php`
+    - `ips-dev-source/apps/xpolarcheckout/app-source/hooks/theme_sc_print_settle.php`
+    - `ips-dev-source/apps/xpolarcheckout/docs/automation/test_tax_breakdown_snapshot.php`
+  - Stripe snapshot now persists:
+    - `taxability_reason`
+    - `taxability_reasons[]`
+    - `tax_breakdown[]` rows with amount, taxable amount, tax behavior, tax rate ID, rate percentage, and jurisdiction metadata.
+  - Settlement blocks on invoice + printable invoice now render taxability reason and tax breakdown lines.
+  - Added automation check to validate tax breakdown extraction against live paid invoices in Stripe test mode.
+- Added Stripe-vs-IPS paid total mismatch warning (read-only):
+  - Files:
+    - `ips-dev-source/apps/xpolarcheckout/app-source/modules/front/webhook/webhook.php`
+    - `ips-dev-source/apps/xpolarcheckout/app-source/hooks/theme_sc_clients_settle.php`
+    - `ips-dev-source/apps/xpolarcheckout/app-source/hooks/theme_sc_print_settle.php`
+    - `ips-dev-source/apps/xpolarcheckout/docs/automation/test_total_mismatch_snapshot.php`
+  - Snapshot now stores `ips_invoice_total_minor/display` plus `has_total_mismatch`, `total_mismatch_minor`, and `total_mismatch_display`.
+  - Customer and print settlement blocks now show IPS invoice total and a mismatch warning row when Stripe and IPS totals diverge.
+  - Added automation check that validates both matching and mismatch code paths using real xpolarcheckout transactions.
+- Added ACP integrity panel for operational visibility:
+  - Files:
+    - `ips-dev-source/apps/xpolarcheckout/app-source/modules/admin/monitoring/integrity.php`
+    - `ips-dev-source/apps/xpolarcheckout/app-source/data/modules.json`
+    - `ips-dev-source/apps/xpolarcheckout/app-source/data/acpmenu.json`
+    - `ips-dev-source/apps/xpolarcheckout/app-source/data/acprestrictions.json`
+    - `ips-dev-source/apps/xpolarcheckout/app-source/data/lang.xml`
+  - New ACP screen summarizes:
+    - webhook configuration state
+    - replay task cursor/health
+    - recent webhook error logs
+    - Stripe-vs-IPS mismatch counts and recent mismatch rows
+  - Added manual action button `Run Webhook Replay Now` in integrity panel to execute replay task immediately (with CSRF protection and ACP audit logging).
+- Added final validation automation for remaining backlog checks:
+  - Files:
+    - `ips-dev-source/apps/xpolarcheckout/docs/automation/test_settlement_rendering.php`
+    - `ips-dev-source/apps/xpolarcheckout/docs/automation/test_vat_matrix_sandbox.php`
+    - `ips-dev-source/apps/xpolarcheckout/docs/automation/test_refund_snapshot_consistency.php`
+  - Settlement rendering validation now checks:
+    - invoice/print settlement hook registration and selector anchors
+    - Stripe settlement rows and customer link labels in hook content
+    - snapshot customer URLs present and legacy notes markers absent
+  - VAT matrix sandbox validation now checks:
+    - DE B2C
+    - EU B2C (OSS-style)
+    - EU B2B with VAT ID
+    - non-EU customer
+  - Refund consistency validation now checks:
+    - transaction snapshot/invoice snapshot tax-total parity
+    - partial + full refund evidence from Stripe Refunds API for xpolarcheckout payment intents
+
+- Improved Stripe Checkout invoice-item mapping and amount precision in gateway auth flow:
+  - File: `ips-dev-source/apps/xpolarcheckout/app-source/sources/XPolarCheckout/XPolarCheckout.php`
+  - Replaced single generic invoice line with itemized `line_items[]` from Nexus invoice rows.
+  - Stripe line item names now use actual invoice item names (fallback to `xpolarcheckout_payment_invoice` only when needed).
+  - Added helper `moneyToStripeMinorUnit()` to convert money to Stripe minor units using `\IPS\Math\Number` and currency decimal precision.
+  - Added helper `buildStripeLineItems()` with resilient fallback when an invoice has no valid item rows.
+- Added webhook event idempotency guard for duplicate Stripe deliveries:
+  - File: `ips-dev-source/apps/xpolarcheckout/app-source/modules/front/webhook/webhook.php`
+  - Added `extractWebhookEventId()`, `isWebhookEventAlreadyProcessed()`, and `markWebhookEventProcessed()` helpers.
+  - Refund/dispute/checkout webhook handlers now short-circuit if Stripe `event.id` is already processed for the transaction.
+  - Stores processed events in `nexus_transactions.t_extra.xpolarcheckout_webhook_events` (keeps latest 50 IDs per transaction).
+- Fixed async webhook status branch handling:
+  - File: `ips-dev-source/apps/xpolarcheckout/app-source/modules/front/webhook/webhook.php`
+  - Corrected async `payment_status` condition flow to use `if/elseif/else` (prevents `paid` events from incorrectly throwing `BAD_STATUS_FOR_async_payment_succeeded/failed`).
+  - Async events received for already terminal transactions (`STATUS_PAID`/`STATUS_REFUSED`) now return HTTP `200` instead of throwing, reducing redundant Stripe retries.
+- Improved refund amount/status handling:
+  - Files:
+    - `ips-dev-source/apps/xpolarcheckout/app-source/modules/front/webhook/webhook.php`
+    - `ips-dev-source/apps/xpolarcheckout/app-source/sources/XPolarCheckout/XPolarCheckout.php`
+  - `charge.refunded` webhook now maps transaction status to `STATUS_PART_REFUNDED` or `STATUS_REFUNDED` based on Stripe charge refund fields.
+  - Gateway `refund()` now uses currency-aware minor-unit conversion for partial refunds and returns Stripe refund ID when available.
+- Added automated tax payload coverage:
+  - Files:
+    - `ips-dev-source/apps/xpolarcheckout/app-source/sources/XPolarCheckout/XPolarCheckout.php`
+    - `ips-dev-source/apps/xpolarcheckout/docs/automation/test_tax_payload.php`
+  - Extracted tax payload helpers (`applyCheckoutTaxConfiguration()`, `applyLineItemTaxBehavior()`) and added CLI assertion script for automatic tax + line-item tax behavior payload shape.
+- Fixed webhook signature enforcement and unknown-transaction handling:
+  - File: `ips-dev-source/apps/xpolarcheckout/app-source/modules/front/webhook/webhook.php`
+  - Handlers now abort immediately when `checkSignature()` fails (prevents post-403 fall-through processing).
+  - `charge.refunded` and `charge.dispute.*` handlers now treat `UnderflowException` and `OutOfRangeException` as `TRANSACTION_NOT_FOUND` (HTTP `200`) instead of raising `500`.
+- Completed runtime verification for refund/dispute/security flows:
+  - Partial + full refund transition validated in test mode (`prfd` then `rfnd`).
+  - Dispute created/closed(won) status transitions validated via signed webhook payload simulation (`dspd`/invoice canceled -> `okay`/invoice paid).
+  - Security checks `SEC1`..`SEC5` updated to PASS in `TEST_RUNTIME.md`.
+- Added webhook outage recovery/replay task:
+  - Files:
+    - `ips-dev-source/apps/xpolarcheckout/app-source/tasks/webhookReplay.php`
+    - `ips-dev-source/apps/xpolarcheckout/app-source/data/tasks.json`
+  - New scheduled task `webhookReplay` (every 15 minutes) replays relevant Stripe events from a rolling window.
+  - Replay forwards signed JSON payloads into the existing webhook endpoint and uses existing idempotency guards to prevent duplicate state transitions.
+  - Replay cursor is persisted in datastore key `xpolarcheckout_webhook_replay_state`.
+- Code audit fixes (P1 bugs):
+  - Fixed `testSettings()` to register `checkout.session.async_payment_succeeded` and `checkout.session.async_payment_failed` webhook event types.
+  - Fixed webhook handler null-dereference on `$gateway` for `charge.refunded`/`charge.dispute.*` events — now gracefully logs and returns HTTP `200`.
+  - Hardened `checkSignature()` with defensive header parsing, multiple `v1` signature support, and `hash_equals()` across all candidates.
+  - Fixed `formatTimestamp()` in ACP integrity panel to use `\gmdate()` instead of `\date()` for UTC-labeled output.
+  - Completed upgrade step `upg_10012/data.json`: enabled `lang`, `modules`, `tasks`, `hooks` flags and added companion `lang.json`, `modules.json`, `tasks.json`, `hooks.json` manifests.
+  - Updated `build.xml` with `admin/monitoring` module, `webhookReplay` task, and `theme_sc_clients_settle`/`theme_sc_print_settle` theme hooks.
+- Code audit fixes (P2 security):
+  - Fixed unescaped JS output in `auth()`: Stripe publishable key and session ID now embedded via `json_encode()` with `JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT` flags, with `FALSE` guard.
+  - Restricted replay task TLS bypass to `IN_DEV` environments only; production path enforces `CURLOPT_SSL_VERIFYPEER=TRUE` and `CURLOPT_SSL_VERIFYHOST=2`.
+  - Added `normalizePublicUrl()` URL validation for Stripe-sourced snapshot values — validates scheme (`http`/`https` only), host, and URL structure before persisting.
+- Code audit fixes (P3 code quality):
+  - Removed dead `$settings` decode in `checkValidity()` — now delegates directly to parent.
+  - Fixed `getCustomer()` docblock to reflect actual `$transaction`/`$settings` parameters and `string` return type.
+  - Migrated replay task `forwardEventToWebhook()` from raw `curl_init()` to `\IPS\Http\Url::external()->request()->post()` with `sslCheck()` for dev/prod TLS behavior.
+- Archived all completed backlog items to `docs/BACKLOG_ARCHIVE.md`.
+
+## 2026-02-14
+
+- Hardened webhook input validation and security:
+  - Fixed `checkSignature()` to return 403 on failed HMAC instead of silently accepting (was returning 200).
+  - Added early-exit with 403 when `Stripe-Signature` header is missing.
+  - Added payload validation returning 400 when JSON body is malformed or missing `type`.
+  - Wrapped `charge.refunded` handler in try-catch for `OutOfRangeException`.
+- Refactored webhook handler for clarity:
+  - Deduplicated gateway lookup loop — resolved once at top of `manage()` instead of 3 times.
+  - Added docblock event mapping table and corrected mislabeled inline comments.
+- Full code audit of `xpolarcheckout` fork (gateway, webhook, hooks, data files):
+  - Confirmed fork is feature-complete — all files ported from legacy app key `stripecheckout` into `xpolarcheckout`.
+  - **CRITICAL BUG found:** `checkSignature()` in `webhook.php:563-566` returns HTTP 200 on failed signature verification instead of rejecting; present in both legacy and fork.
+  - Found missing `isset()` check on `$_SERVER['HTTP_STRIPE_SIGNATURE']` across all webhook event handlers.
+  - Found missing try-catch on webhook JSON body parse (`webhook.php:35-36`).
+  - Found `->first()` transaction lookups without `OutOfRangeException` handling (`webhook.php:58, 96, 146`).
+  - Found gateway lookup loop repeated 4 times per webhook request — should be cached.
+  - Found `* 100` amount math without `\IPS\Math\Number` — floating-point precision risk.
+  - No idempotency/dedup logic on `charge.refunded`, `charge.dispute.*` events (only `checkout.session.completed` has early-return).
+  - Updated `BACKLOG.md` with new P0 critical bugs and P1 code quality items.
+  - Updated `TEST_RUNTIME.md` with new security verification test cases.
+- Added side-by-side install fork `xpolarcheckout` to avoid app/gateway key conflicts with prior app key `stripecheckout`:
+  - New app directory: `ips-dev-source/apps/xpolarcheckout/app-source/`
+  - New gateway key/class: `XPolarCheckout` / `\IPS\xpolarcheckout\XPolarCheckout`
+  - New webhook route contract: `index.php?app=xpolarcheckout&module=webhook&controller=webhook`
+  - New snapshot storage keys: `xpolarcheckout_snapshot` in transaction/invoice metadata.
+- Added migration helper for cutover safety in new gateway:
+  - `ips-dev-source/apps/xpolarcheckout/app-source/sources/XPolarCheckout/XPolarCheckout.php`
+  - Auto-prefills non-webhook settings (`publishable`, `secret`, tax/method/refund/address options) from existing legacy `StripeCheckout` paymethod when present.
+  - Intentionally does **not** reuse legacy webhook URL/secret so new app can create its own endpoint on first save.
+- Updated setup tracking consistency:
+  - Marked `P0` setup items complete in `ips-dev-source/apps/xpolarcheckout/docs/BACKLOG.md` based on `TEST_RUNTIME.md` + DB recheck.
+
+## 2026-02-12
+
+- Added low-risk Stripe settlement snapshot sync for invoice visibility:
+  - `ips-dev-source/apps/xpolarcheckout/app-source/modules/front/webhook/webhook.php`
+  - On `checkout.session.completed`, app now stores Stripe settlement fields in:
+    - `nexus_transactions.t_extra['xpolarcheckout_snapshot']`
+    - `nexus_invoices.i_status_extra['xpolarcheckout_snapshot']`
+  - Added display-friendly snapshot fields (`amount_*_display`, `captured_at_iso`, Stripe dashboard URLs).
+- Replaced notes-based settlement rendering with dedicated read-only theme hook blocks:
+  - `ips-dev-source/apps/xpolarcheckout/app-source/hooks/theme_sc_clients_settle.php`
+  - `ips-dev-source/apps/xpolarcheckout/app-source/hooks/theme_sc_print_settle.php`
+  - Hook registry updated in `ips-dev-source/apps/xpolarcheckout/app-source/data/hooks.json`.
+  - Legacy marker blocks removed from existing invoice notes.
+- Tax hardening updates for configurable VAT mode with safe defaults:
+  - `ips-dev-source/apps/xpolarcheckout/app-source/sources/XPolarCheckout/XPolarCheckout.php`
+  - Default Stripe tax to enabled for new/unset gateway settings.
+  - Keep admin option to disable Stripe automatic tax entirely.
+  - Keep admin-selectable `tax_behavior` (`exclusive`/`inclusive`) with default `exclusive`.
+  - Force Checkout `billing_address_collection='required'` when tax is enabled.
+  - Use Stripe-compatible boolean tokens (`'true'`) for `automatic_tax.enabled` and `invoice_creation.enabled` in form-encoded requests.
+  - Ensure tax settings validation falls back to `exclusive` when missing/invalid.
+- Documented and repaired local currency migration issue for product pricing (USD -> EUR) and rebuilt `nexus_package_base_prices` cache.
+- Unified Stripe API version usage to `2026-01-28.clover` in app source:
+  - `ips-dev-source/apps/xpolarcheckout/app-source/sources/XPolarCheckout/XPolarCheckout.php`
+  - `ips-dev-source/apps/xpolarcheckout/app-source/modules/front/webhook/webhook.php`
+- Updated webhook endpoint auto-create payload to pin endpoint `api_version` to `2026-01-28.clover`.
+- Updated local `stripe-cli` service to run `stripe listen --latest` for Clover-era payload compatibility in local forwarding.
+- Added app source to repository:
+  - `ips-dev-source/apps/xpolarcheckout/app-source/` (from `Stripe Checkout Gateway 1.1.1.tar`)
+- Added component documentation pack:
+  - `ips-dev-source/apps/xpolarcheckout/docs/README.md`
+  - `ips-dev-source/apps/xpolarcheckout/docs/BACKLOG.md`
+  - `ips-dev-source/apps/xpolarcheckout/docs/FLOW.md`
+  - `ips-dev-source/apps/xpolarcheckout/docs/TEST_RUNTIME.md`
+- Registered component in:
+  - `PROJECT.md`
+- Added local Stripe webhook listener guidance tied to stack-level docker service:
+  - `compose.yaml` (`stripe-cli` profile service)
+  - `.env.example` (`STRIPE_API_KEY`, `STRIPE_FORWARD_TO`, `STRIPE_WEBHOOK_EVENTS`)
+  - `scripts/start-stripe-listener.ps1`
+  - `ips-dev-source/apps/xpolarcheckout/docs/README.md`
+  - `ips-dev-source/apps/xpolarcheckout/docs/TEST_RUNTIME.md`

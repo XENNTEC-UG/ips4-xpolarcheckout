@@ -1,0 +1,138 @@
+{
+	"xsc_webhook_forensics": {
+		"columns": {
+			"forensic_id": {
+				"allow_null": false,
+				"auto_increment": true,
+				"binary": false,
+				"comment": "",
+				"decimals": null,
+				"default": null,
+				"length": 20,
+				"name": "forensic_id",
+				"type": "BIGINT",
+				"unsigned": true,
+				"values": [],
+				"zerofill": false
+			},
+			"event_type": {
+				"allow_null": false,
+				"auto_increment": false,
+				"binary": false,
+				"comment": "",
+				"decimals": null,
+				"default": "",
+				"length": 64,
+				"name": "event_type",
+				"type": "VARCHAR",
+				"unsigned": false,
+				"values": [],
+				"zerofill": false
+			},
+			"event_id": {
+				"allow_null": true,
+				"auto_increment": false,
+				"binary": false,
+				"comment": "",
+				"decimals": null,
+				"default": null,
+				"length": 64,
+				"name": "event_id",
+				"type": "VARCHAR",
+				"unsigned": false,
+				"values": [],
+				"zerofill": false
+			},
+			"failure_reason": {
+				"allow_null": false,
+				"auto_increment": false,
+				"binary": false,
+				"comment": "",
+				"decimals": null,
+				"default": "",
+				"length": 64,
+				"name": "failure_reason",
+				"type": "VARCHAR",
+				"unsigned": false,
+				"values": [],
+				"zerofill": false
+			},
+			"ip_address": {
+				"allow_null": false,
+				"auto_increment": false,
+				"binary": false,
+				"comment": "",
+				"decimals": null,
+				"default": "",
+				"length": 46,
+				"name": "ip_address",
+				"type": "VARCHAR",
+				"unsigned": false,
+				"values": [],
+				"zerofill": false
+			},
+			"http_status": {
+				"allow_null": false,
+				"auto_increment": false,
+				"binary": false,
+				"comment": "",
+				"decimals": null,
+				"default": 0,
+				"length": 5,
+				"name": "http_status",
+				"type": "SMALLINT",
+				"unsigned": true,
+				"values": [],
+				"zerofill": false
+			},
+			"payload_snippet": {
+				"allow_null": true,
+				"auto_increment": false,
+				"binary": false,
+				"comment": "",
+				"decimals": null,
+				"default": null,
+				"length": null,
+				"name": "payload_snippet",
+				"type": "TEXT",
+				"unsigned": false,
+				"values": [],
+				"zerofill": false
+			},
+			"created_at": {
+				"allow_null": false,
+				"auto_increment": false,
+				"binary": false,
+				"comment": "",
+				"decimals": null,
+				"default": 0,
+				"length": 10,
+				"name": "created_at",
+				"type": "INT",
+				"unsigned": false,
+				"values": [],
+				"zerofill": false
+			}
+		},
+		"indexes": {
+			"PRIMARY": {
+				"type": "primary",
+				"name": "PRIMARY",
+				"columns": ["forensic_id"],
+				"length": [null]
+			},
+			"idx_created_at": {
+				"type": "key",
+				"name": "idx_created_at",
+				"columns": ["created_at"],
+				"length": [null]
+			},
+			"idx_failure_created": {
+				"type": "key",
+				"name": "idx_failure_created",
+				"columns": ["failure_reason", "created_at"],
+				"length": [null, null]
+			}
+		}
+	}
+}
