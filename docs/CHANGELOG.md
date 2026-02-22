@@ -1,5 +1,19 @@
 # X Polar Checkout App - Changelog
 
+## 2026-02-22 - Webhook Endpoint Lifecycle + Runtime Scope Diagnosis
+
+- Implemented webhook endpoint lifecycle wiring in `app-source/sources/XPolarCheckout/XPolarCheckout.php`:
+  - `testSettings()` now attempts automatic endpoint creation and stores `webhook_endpoint_id` when available.
+  - `syncWebhookEvents()` now performs real `PATCH /v1/webhooks/endpoints/{id}` with `REQUIRED_WEBHOOK_EVENTS`.
+  - `fetchWebhookEndpoint()` now supports endpoint discovery by matching configured `webhook_url` against provider endpoint list when endpoint id is missing.
+- Hardened endpoint error handling:
+  - endpoint create/sync now validate provider response shape (`id` required).
+  - provider error payloads now surface readable runtime messages (instead of silent no-op behavior).
+  - creation failures are logged under `xpolarcheckout_webhook_endpoint`.
+- Runtime verification:
+  - checkout API remains functional with configured sandbox token (`POST /v1/checkouts/` -> `201 Created`).
+  - webhook endpoint API currently returns `401 Unauthorized` for the same token (`GET /v1/webhooks/endpoints/`), indicating missing/insufficient webhook scopes on current token.
+
 ## 2026-02-22 - ACP Presentment Currency Control
 
 - Added new gateway ACP setting: `Default presentment currency`.

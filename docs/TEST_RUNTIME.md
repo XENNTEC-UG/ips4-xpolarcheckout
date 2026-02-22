@@ -51,6 +51,7 @@ Current runtime baseline is Phase 2 in-progress (`v1.0.1` / `10001`).
 
 ## Pending Suite Expansion
 
+- Webhook endpoint lifecycle end-to-end verification in ACP (blocked by current token permissions on `/v1/webhooks/endpoints/*`).
 - B3 end-to-end paid checkout + successful refund validation (real sandbox paid order fixture).
 - Full checkout/refund runtime matrix with non-EUR test fixture (to confirm mismatch guard UX/messages in storefront checkout flow).
 
@@ -71,7 +72,12 @@ Current runtime baseline is Phase 2 in-progress (`v1.0.1` / `10001`).
 - Polar sandbox API contract checks:
   - refund schema accepted (unknown order id returns expected provider error).
   - checkout request accepted after org currency sync (`201` with EUR-only price payload).
+  - webhook endpoint APIs currently return `401 Unauthorized` with current token (`GET/POST /v1/webhooks/endpoints/`), while checkout APIs remain authorized.
 - ACP currency-setting sync checks:
   - `Default presentment currency` setting added to gateway configuration.
   - `testSettings()` syncs Polar org `default_presentment_currency` and persists `organization_id`.
   - mismatch guard validated: non-matching transaction currency returns `xpolarcheckout_presentment_currency_mismatch`.
+- Webhook endpoint lifecycle code checks:
+  - `testSettings()` attempts endpoint creation when `webhook_endpoint_id` is empty.
+  - `syncWebhookEvents()` issues provider PATCH with required event set.
+  - provider errors are now logged/surfaced instead of silent no-op behavior.

@@ -254,6 +254,7 @@ class _XPolarCheckout extends \IPS\nexus\Gateway
         $settings['default_product_id'] = isset( $settings['default_product_id'] ) ? \trim( (string) $settings['default_product_id'] ) : '';
         $settings['presentment_currency'] = isset( $settings['presentment_currency'] ) ? \mb_strtolower( \trim( (string) $settings['presentment_currency'] ) ) : static::DEFAULT_PRESENTMENT_CURRENCY;
         $settings['webhook_secret'] = isset( $settings['webhook_secret'] ) ? \trim( (string) $settings['webhook_secret'] ) : '';
+        $settings['webhook_endpoint_id'] = isset( $settings['webhook_endpoint_id'] ) ? \trim( (string) $settings['webhook_endpoint_id'] ) : '';
         $settings['replay_lookback'] = isset( $settings['replay_lookback'] ) ? \max( 300, \min( 86400, (int) $settings['replay_lookback'] ) ) : 3600;
         $settings['replay_overlap'] = isset( $settings['replay_overlap'] ) ? \max( 60, \min( 1800, (int) $settings['replay_overlap'] ) ) : 300;
         $settings['replay_max_events'] = isset( $settings['replay_max_events'] ) ? \max( 10, \min( 100, (int) $settings['replay_max_events'] ) ) : 100;
@@ -292,6 +293,31 @@ class _XPolarCheckout extends \IPS\nexus\Gateway
         if ( empty( $settings['webhook_url'] ) )
         {
             $settings['webhook_url'] = (string) \IPS\Http\Url::internal( 'app=xpolarcheckout&module=webhook&controller=webhook', 'front' );
+        }
+
+        if ( $settings['webhook_endpoint_id'] === '' )
+        {
+            try
+            {
+                $createdEndpoint = static::createWebhookEndpoint( $settings );
+                if ( \is_array( $createdEndpoint ) && isset( $createdEndpoint['id'] ) && \is_scalar( $createdEndpoint['id'] ) )
+                {
+                    $settings['webhook_endpoint_id'] = (string) $createdEndpoint['id'];
+
+                    if ( empty( $settings['webhook_secret'] )
+                        && isset( $createdEndpoint['secret'] )
+                        && \is_string( $createdEndpoint['secret'] )
+                        && $createdEndpoint['secret'] !== '' )
+                    {
+                        $settings['webhook_secret'] = $createdEndpoint['secret'];
+                    }
+                }
+            }
+            catch ( \Exception $e )
+            {
+                /* Non-HTTPS local development URLs cannot be registered as Polar webhook endpoints. */
+                \IPS\Log::log( $e, 'xpolarcheckout_webhook_endpoint' );
+            }
         }
 
         return $settings;
@@ -428,7 +454,58 @@ class _XPolarCheckout extends \IPS\nexus\Gateway
      */
     public static function fetchWebhookEndpoint( array $settings )
     {
-        if ( empty( $settings['access_token'] ) || empty( $settings['webhook_endpoint_id'] ) )
+        $accessToken = isset( $settings['access_token'] ) ? \trim( (string) $settings['access_token'] ) : '';
+        if ( $accessToken === '' )
+        {
+            return NULL;
+        }
+
+        $apiBase = static::resolveApiBase( $settings );
+        $endpointId = isset( $settings['webhook_endpoint_id'] ) ? \trim( (string) $settings['webhook_endpoint_id'] ) : '';
+
+        if ( $endpointId !== '' )
+        {
+            try
+            {
+                $response = \IPS\Http\Url::external( $apiBase . '/webhooks/endpoints/' . $endpointId )
+                    ->request( 20 )
+                    ->setHeaders( array(
+                        'Authorization' => 'Bearer ' . $accessToken,
+                        'Accept' => 'application/json',
+                    ) )
+                    ->get()
+                    ->decodeJson();
+
+                $normalized = static::normalizeWebhookEndpointResponse( $response );
+                if ( \is_array( $normalized ) && isset( $normalized['id'] ) && \is_scalar( $normalized['id'] ) )
+                {
+                    return $normalized;
+                }
+            }
+            catch ( \Exception $e ) {}
+        }
+
+        $webhookUrl = isset( $settings['webhook_url'] ) ? \trim( (string) $settings['webhook_url'] ) : '';
+        if ( $webhookUrl === '' )
+        {
+            return NULL;
+        }
+
+        return static::findWebhookEndpointByUrl( $settings, $webhookUrl );
+    }
+
+    /**
+     * Discover endpoint by URL.
+     *
+     * @param array  $settings
+     * @param string $webhookUrl
+     * @return array|NULL
+     */
+    protected static function findWebhookEndpointByUrl( array $settings, $webhookUrl )
+    {
+        $accessToken = isset( $settings['access_token'] ) ? \trim( (string) $settings['access_token'] ) : '';
+        $webhookUrl = \trim( (string) $webhookUrl );
+        if ( $accessToken === '' || $webhookUrl === '' )
         {
             return NULL;
         }
@@ -437,21 +514,40 @@ class _XPolarCheckout extends \IPS\nexus\Gateway
 
         try
         {
-            $response = \IPS\Http\Url::external( $apiBase . '/webhooks/endpoints/' . $settings['webhook_endpoint_id'] )
+            $response = \IPS\Http\Url::external( $apiBase . '/webhooks/endpoints/' )
                 ->request( 20 )
                 ->setHeaders( array(
-                    'Authorization' => 'Bearer ' . $settings['access_token'],
+                    'Authorization' => 'Bearer ' . $accessToken,
                     'Accept' => 'application/json',
                 ) )
                 ->get()
                 ->decodeJson();
-
-            return \is_array( $response ) ? $response : NULL;
         }
         catch ( \Exception $e )
         {
             return NULL;
         }
+
+        if ( !\is_array( $response ) || !isset( $response['items'] ) || !\is_array( $response['items'] ) )
+        {
+            return NULL;
+        }
+
+        foreach ( $response['items'] as $endpoint )
+        {
+            $normalized = static::normalizeWebhookEndpointResponse( $endpoint );
+            if ( !\is_array( $normalized ) || !isset( $normalized['url'] ) )
+            {
+                continue;
+            }
+
+            if ( \trim( (string) $normalized['url'] ) === $webhookUrl )
+            {
+                return $normalized;
+            }
+        }
+
+        return NULL;
     }
 
     /**
@@ -463,10 +559,41 @@ class _XPolarCheckout extends \IPS\nexus\Gateway
      */
     public static function syncWebhookEvents( array $settings, $endpointId )
     {
-        return array(
-            'id' => (string) $endpointId,
-            'enabled_events' => static::REQUIRED_WEBHOOK_EVENTS,
-        );
+        $accessToken = isset( $settings['access_token'] ) ? \trim( (string) $settings['access_token'] ) : '';
+        $endpointId = \trim( (string) $endpointId );
+        if ( $accessToken === '' || $endpointId === '' )
+        {
+            throw new \RuntimeException( 'Missing webhook endpoint sync settings.' );
+        }
+
+        $payload = \json_encode( array(
+            'format' => 'raw',
+            'events' => \array_values( static::REQUIRED_WEBHOOK_EVENTS ),
+            'enabled' => TRUE,
+        ) );
+        if ( !\is_string( $payload ) )
+        {
+            throw new \RuntimeException( 'Unable to encode webhook endpoint sync payload.' );
+        }
+
+        $apiBase = static::resolveApiBase( $settings );
+        $response = \IPS\Http\Url::external( $apiBase . '/webhooks/endpoints/' . $endpointId )
+            ->request( 20 )
+            ->setHeaders( array(
+                'Authorization' => 'Bearer ' . $accessToken,
+                'Content-Type' => 'application/json',
+                'Accept' => 'application/json',
+            ) )
+            ->patch( $payload )
+            ->decodeJson();
+
+        $normalized = static::normalizeWebhookEndpointResponse( $response );
+        if ( !\is_array( $normalized ) || !isset( $normalized['id'] ) || !\is_scalar( $normalized['id'] ) )
+        {
+            throw new \RuntimeException( static::formatWebhookErrorMessage( $response, 'sync' ) );
+        }
+
+        return $normalized;
     }
 
     /**
@@ -551,6 +678,140 @@ class _XPolarCheckout extends \IPS\nexus\Gateway
         }
 
         return $organization;
+    }
+
+    /**
+     * Create Polar webhook endpoint when not yet configured.
+     *
+     * @param array $settings
+     * @return array|NULL
+     */
+    protected static function createWebhookEndpoint( array $settings )
+    {
+        $accessToken = isset( $settings['access_token'] ) ? \trim( (string) $settings['access_token'] ) : '';
+        $webhookUrl = isset( $settings['webhook_url'] ) ? \trim( (string) $settings['webhook_url'] ) : '';
+
+        if ( $accessToken === '' || $webhookUrl === '' || !static::isHttpsWebhookUrl( $webhookUrl ) )
+        {
+            return NULL;
+        }
+
+        $payload = array(
+            'url' => $webhookUrl,
+            'format' => 'raw',
+            'events' => \array_values( static::REQUIRED_WEBHOOK_EVENTS ),
+        );
+
+        $webhookSecret = isset( $settings['webhook_secret'] ) ? \trim( (string) $settings['webhook_secret'] ) : '';
+        if ( $webhookSecret !== '' && \mb_strlen( $webhookSecret ) >= 32 )
+        {
+            $payload['secret'] = $webhookSecret;
+        }
+
+        $encoded = \json_encode( $payload );
+        if ( !\is_string( $encoded ) )
+        {
+            throw new \RuntimeException( 'Unable to encode webhook endpoint create payload.' );
+        }
+
+        $apiBase = static::resolveApiBase( $settings );
+        $response = \IPS\Http\Url::external( $apiBase . '/webhooks/endpoints/' )
+            ->request( 20 )
+            ->setHeaders( array(
+                'Authorization' => 'Bearer ' . $accessToken,
+                'Content-Type' => 'application/json',
+                'Accept' => 'application/json',
+            ) )
+            ->post( $encoded )
+            ->decodeJson();
+
+        $normalized = static::normalizeWebhookEndpointResponse( $response );
+        if ( !\is_array( $normalized ) || !isset( $normalized['id'] ) || !\is_scalar( $normalized['id'] ) )
+        {
+            throw new \RuntimeException( static::formatWebhookErrorMessage( $response, 'create' ) );
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * Build readable webhook API error message.
+     *
+     * @param mixed  $response
+     * @param string $action
+     * @return string
+     */
+    protected static function formatWebhookErrorMessage( $response, $action )
+    {
+        $message = 'Invalid webhook endpoint ' . $action . ' response.';
+        if ( \is_array( $response ) )
+        {
+            if ( isset( $response['detail'] ) && \is_string( $response['detail'] ) && $response['detail'] !== '' )
+            {
+                return $message . ' ' . $response['detail'];
+            }
+            if ( isset( $response['error_description'] ) && \is_string( $response['error_description'] ) && $response['error_description'] !== '' )
+            {
+                return $message . ' ' . $response['error_description'];
+            }
+            if ( isset( $response['error'] ) && \is_string( $response['error'] ) && $response['error'] !== '' )
+            {
+                return $message . ' ' . $response['error'];
+            }
+        }
+
+        return $message;
+    }
+
+    /**
+     * Normalize webhook endpoint payload for downstream consumers.
+     *
+     * @param mixed $endpoint
+     * @return array|NULL
+     */
+    protected static function normalizeWebhookEndpointResponse( $endpoint )
+    {
+        if ( !\is_array( $endpoint ) )
+        {
+            return NULL;
+        }
+
+        if ( isset( $endpoint['events'] ) && \is_array( $endpoint['events'] ) )
+        {
+            $normalizedEvents = array();
+            foreach ( $endpoint['events'] as $event )
+            {
+                if ( \is_scalar( $event ) && (string) $event !== '' )
+                {
+                    $normalizedEvents[] = (string) $event;
+                }
+            }
+            $endpoint['events'] = $normalizedEvents;
+            $endpoint['enabled_events'] = $normalizedEvents;
+        }
+        elseif ( isset( $endpoint['enabled_events'] ) && \is_array( $endpoint['enabled_events'] ) )
+        {
+            $endpoint['events'] = $endpoint['enabled_events'];
+        }
+
+        return $endpoint;
+    }
+
+    /**
+     * Determine whether webhook URL is HTTPS.
+     *
+     * @param string $url
+     * @return bool
+     */
+    protected static function isHttpsWebhookUrl( $url )
+    {
+        if ( !\is_string( $url ) || $url === '' )
+        {
+            return FALSE;
+        }
+
+        $scheme = \parse_url( $url, PHP_URL_SCHEME );
+        return \is_string( $scheme ) && \mb_strtolower( $scheme ) === 'https';
     }
 
     /**

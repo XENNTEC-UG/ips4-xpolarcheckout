@@ -6,9 +6,10 @@ This file tracks current implementation tasks. Canonical remote tracking remains
 
 ## User Test Required (Top Priority)
 
-- [ ] **ACP currency setting confirmation**
-  - In ACP gateway settings, confirm `Default presentment currency` is set to `EUR`.
-  - Save once and verify no validation error is shown.
+- [ ] **Polar token scope update for webhook management**
+  - Current configured token can create checkouts (`POST /v1/checkouts/` returns `201`) but cannot manage webhook endpoints (`GET/POST /v1/webhooks/endpoints/` returns `401 Unauthorized`).
+  - Generate/update a Polar organization access token that includes webhook endpoint scopes (`webhooks:read` and `webhooks:write`), then save it in ACP gateway settings.
+  - Re-save the gateway and verify `webhook_endpoint_id` is persisted.
 
 - [ ] **Manual paid checkout (sandbox)**
   - Complete a real hosted Polar checkout from Nexus invoice flow and confirm IPS transaction reaches paid state.
@@ -19,12 +20,6 @@ This file tracks current implementation tasks. Canonical remote tracking remains
   - Full remaining refund -> transaction becomes refunded.
 
 ## Agent-Executable Open Tasks
-
-- [ ] **Webhook endpoint lifecycle implementation**
-  - Integrity panel currently reports endpoint not found:
-    - `Webhook endpoint not found on Polar. Re-save gateway settings to create one.`
-  - Current code only fetches endpoint when `webhook_endpoint_id` exists; creation/backfill path is incomplete.
-  - Implement endpoint discovery/creation + persisted `webhook_endpoint_id`, then validate `syncEvents` path.
 
 - [ ] **B3 completion evidence (real paid-order refund success)**
   - One end-to-end successful refund call is still required against a real paid Polar order id created through Nexus runtime.
@@ -66,6 +61,15 @@ This file tracks current implementation tasks. Canonical remote tracking remains
   - gateway validity now returns `xpolarcheckout_presentment_currency_mismatch` when transaction currency differs from configured presentment currency.
   - checkout payload now includes explicit top-level `currency`.
   - local runtime validation confirms EUR checkout payload succeeds after sync.
+- [x] Webhook endpoint lifecycle implementation completed in gateway class:
+  - `testSettings()` now attempts webhook endpoint creation when `webhook_endpoint_id` is empty and stores returned endpoint id.
+  - `syncWebhookEvents()` now performs real provider PATCH to `/v1/webhooks/endpoints/{id}` with `REQUIRED_WEBHOOK_EVENTS`.
+  - `fetchWebhookEndpoint()` now supports fallback endpoint discovery by matching configured `webhook_url` against provider endpoint list when id is missing (backfill-compatible).
+  - endpoint API errors now surface via structured runtime exceptions and log category `xpolarcheckout_webhook_endpoint`.
+- [x] Runtime API verification (2026-02-22):
+  - `POST /v1/checkouts/` from runtime token: **201 Created**.
+  - `GET /v1/webhooks/endpoints/` from same token: **401 Unauthorized**.
+  - `testSettings()` now logs endpoint creation failures instead of failing silently when provider rejects endpoint operations.
 
 ## Archive
 

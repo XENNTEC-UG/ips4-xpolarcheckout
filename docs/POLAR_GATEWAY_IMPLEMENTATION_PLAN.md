@@ -459,8 +459,23 @@ Rollback:
   - runtime `testSettings()` execution confirmed org sync and normalized settings persistence.
   - sandbox checkout API accepted EUR payload after sync (`201`).
 
+### 2026-02-22 - Webhook Endpoint Lifecycle Implemented (Code Complete)
+
+- Implemented real webhook endpoint lifecycle in gateway class:
+  - `testSettings()` now attempts endpoint creation when `webhook_endpoint_id` is empty.
+  - `syncWebhookEvents()` now performs real `PATCH /v1/webhooks/endpoints/{id}` with `REQUIRED_WEBHOOK_EVENTS`.
+  - `fetchWebhookEndpoint()` now falls back to endpoint discovery by matching configured `webhook_url` against provider endpoint list when id is missing.
+- Hardened provider response handling:
+  - endpoint create/sync now require valid endpoint `id` in response.
+  - provider error payloads now surface readable runtime exceptions instead of silent no-op behavior.
+  - endpoint creation failures are logged under `xpolarcheckout_webhook_endpoint`.
+- Runtime verification:
+  - checkout API with current sandbox token works (`POST /v1/checkouts/` -> `201`).
+  - webhook endpoint APIs with the same token fail (`GET/POST /v1/webhooks/endpoints/` -> `401 Unauthorized`).
+  - conclusion: implementation is complete; current blocker is token permission scope for webhook endpoint operations.
+
 ### Remaining Phase 2 Work
 
 - B3: complete end-to-end paid checkout + successful refund validation with a real sandbox paid order (`gw_id`).
-- Implement webhook endpoint lifecycle completion (`webhook_endpoint_id` discovery/creation/backfill) so integrity endpoint panel can fully sync events.
+- Refresh Polar token with webhook endpoint scopes (`webhooks:read`, `webhooks:write`), then re-run ACP save + integrity sync to verify persisted `webhook_endpoint_id`.
 - Full `docs/TEST_RUNTIME.md` smoke matrix execution with real paid + refund fixtures.
