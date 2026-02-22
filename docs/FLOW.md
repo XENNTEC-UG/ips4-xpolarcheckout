@@ -1,30 +1,43 @@
 # X Polar Checkout Flow
 
-## Current State
+## Current Scope
 
-This document reflects the Phase 0 migration baseline.
+This document captures the active migration architecture for `xpolarcheckout`.
 
-## Entry Points
+## Runtime Entry Points
 
 - Gateway class: `app-source/sources/XPolarCheckout/XPolarCheckout.php`
 - Webhook endpoint: `index.php?app=xpolarcheckout&module=webhook&controller=webhook`
 - Integrity panel: `app-source/modules/admin/monitoring/integrity.php`
 - Replay task: `app-source/tasks/webhookReplay.php`
 
-## Webhook Behavior (Phase 0)
+## End-to-End Flow (Target)
 
-- `charge.refunded` is processed.
-- `charge.dispute.created` and `charge.dispute.closed` are explicitly ignored while dispute automation is removed.
-- Signature validation and idempotency guards remain in place from the Stripe baseline.
+1. Customer starts checkout from Nexus invoice/transaction.
+2. Gateway creates Polar checkout session and receives `checkout_url`.
+3. Customer is redirected to Polar hosted checkout.
+4. Polar sends webhook events to IPS endpoint.
+5. Webhook controller verifies signature and timestamp freshness.
+6. Event mapper updates IPS transaction state and stores provider snapshot metadata.
+7. Integrity panel and replay task monitor lag, mismatches, and recovery needs.
 
-## Data/Schema
+## Webhook Invariants
 
-- Forensics table key is `xpc_webhook_forensics`.
-- App metadata version reset to `1.0.0` / `10000`.
-- Setup upgrades are collapsed to `setup/upg_10000` only.
+- Reject missing/invalid signatures.
+- Enforce replay window tolerance.
+- Process each event idempotently.
+- Never regress already-terminal transaction states.
+- Log failures into `xpc_webhook_forensics` for ACP review.
 
-## Pending Polar Migration
+## Data Model Notes
 
-- Replace Stripe checkout/session creation with Polar checkout creation.
-- Replace Stripe webhook signature model with Polar/Standard Webhooks model.
-- Replace Stripe event map with Polar `order.*`/`refund.*` event map.
+- `xpc_webhook_forensics` stores webhook validation and processing failures.
+- `t_extra` stores normalized provider snapshot fields for transaction-level evidence.
+- `i_status_extra` is used for invoice-level settlement display metadata where needed.
+
+## Pending Migration Items
+
+- Finalize checkout payload fields for Polar session creation.
+- Complete event map for paid, failed, refunded, and partial-refund states.
+- Replace replay pull logic with Polar-native delivery/event retrieval.
+- Align settlement display hooks with finalized snapshot schema.

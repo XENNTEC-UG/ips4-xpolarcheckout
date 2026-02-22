@@ -1,27 +1,32 @@
 # X Polar Checkout
 
-## Status
+## Current Status
 
-Phase 0 baseline cleanup is in progress.
+`xpolarcheckout` is installed as an IPS4 app and is in active provider migration.
 
-This app currently keeps the Stripe-derived gateway architecture but removes legacy packaging artifacts and prepares for Polar provider migration.
+- App install and gateway registration recovery shipped in `v1.0.1` (`10001`).
+- Gateway shell, webhook controller, integrity panel, and replay task scaffolding are in place.
+- Standard Webhooks signature validation hardening is implemented.
+- Full Polar checkout, refund, and replay provider calls are still in progress.
 
 ## Source Paths
 
 - Gateway: `app-source/sources/XPolarCheckout/XPolarCheckout.php`
 - Webhook controller: `app-source/modules/front/webhook/webhook.php`
-- ACP integrity: `app-source/modules/admin/monitoring/integrity.php`
+- Integrity ACP module: `app-source/modules/admin/monitoring/integrity.php`
 - Forensics schema: `app-source/data/schema.json` (`xpc_webhook_forensics`)
 
-## Phase 0 Notes
+## Doc Read Order
 
-- Submodule/app key: `xpolarcheckout`
-- Setup migrations reduced to `setup/upg_10000`
-- Legacy Stripe release tar removed from `releases/`
-- Legacy `docs/automation/` scripts removed
+1. `docs/POLAR_GATEWAY_IMPLEMENTATION_PLAN.md`
+2. `docs/BACKLOG.md`
+3. `docs/TEST_RUNTIME.md`
+4. `docs/CHANGELOG.md`
+5. `docs/FLOW.md`
+6. `docs/FEATURES.MD`
 
-## Next Work
+## Working Rules
 
-- Replace Stripe API calls with Polar API calls
-- Implement Polar webhook verification and event mapping
-- Rebuild runtime test matrix for Polar flows
+- Keep active execution tracking in `docs/BACKLOG.md` and GitHub issue `#1`.
+- Log completed milestones in `docs/CHANGELOG.md` with date and version.
+- Update this file if architecture entry points or status materially change.

@@ -1,34 +1,41 @@
-# Stripe Checkout Dev Status - Active Tasks
+# X Polar Checkout Backlog
 
-**Related docs:**
-- [README.md](README.md) - component entrypoint and install notes
-- [FLOW.md](FLOW.md) - entry points and event flow
-- [TEST_RUNTIME.md](TEST_RUNTIME.md) - manual verification list
-- [CHANGELOG.md](CHANGELOG.md) - completed work history
-- [BACKLOG_ARCHIVE.md](archive/BACKLOG_ARCHIVE.md) - completed backlog history
-- [../../../../IPS4_DEV_GUIDE.md](../../../../IPS4_DEV_GUIDE.md) - sync/export workflow
+## Active Focus
 
-## Current Status (2026-02-20)
+This file tracks current implementation tasks. Canonical remote tracking remains GitHub issue `#1`.
 
-16/16 automated test scripts PASS (A1-A14, A16-A17). Additional targeted guard check A15 PASS (webhook capture lock). All browser-test bugs resolved. Both queued improvements implemented (tax-aware mismatch, registration type display). Chargeback protection suite complete: B1-B8, B10-B11 implemented. Completed work archived in [BACKLOG_ARCHIVE.md](archive/BACKLOG_ARCHIVE.md).
+## Phase 2 Blockers
 
-**App version:** 1.1.4 (long version 10014)
+- [x] **B2: Event map completion**
+  - Implemented full webhook transition handlers for `order.created`, `order.paid`, `order.updated`, `order.refunded`, `checkout.updated`, and `refund.updated`.
+  - Added status guardrails for idempotency and no terminal-state regression.
+  - Added partial/full refund detection from Polar order/refund fields (`total_amount`, `refunded_amount`, refund `amount` fallback).
+  - File: `app-source/modules/front/webhook/webhook.php` (2026-02-22).
 
----
+- [ ] **B3: Checkout + refund provider paths**
+  - Finish checkout session creation payload and redirect handoff.
+  - Implement `refund()` using Polar refund API and map outcomes to IPS statuses.
+  - In progress: amount conversion now uses currency decimals and checkout `price_currency` now uses lowercase enum style for Polar API compatibility.
 
-## TODO — Active Backlog
+- [ ] **B4: Replay pipeline rewrite**
+  - Replace current replay source with Polar delivery/event retrieval.
+  - Keep runtime guardrails (lookback, overlap, max events, max runtime).
 
-No open items.
+## Integration Tasks
 
----
+- [ ] Finalize ACP settings schema for Polar credentials and endpoint fields.
+- [ ] Validate gateway appears and saves correctly in ACP payment methods.
+- [ ] Normalize settlement snapshot keys for customer and print hook output.
 
-## Implementation Notes
+## Testing Tasks
 
-These guardrails are mandatory for future changes and should be checked against `IPS4_DEV_GUIDE.md` before merge.
+- [ ] Local CLI webhook forwarding and signature-validation smoke tests.
+- [ ] Manual paid checkout test in Nexus sandbox.
+- [ ] Manual partial and full refund verification.
+- [ ] Replay dry-run and live replay validation in ACP integrity panel.
 
-1. **Template safety** — use `{$var}` output for dynamic values. Avoid raw `{expression="..."}` for user/external data.
-2. **Hook robustness** — catch `\Throwable`, keep parent fallback. Never break core Nexus page execution.
-3. **String API** — prefer `\mb_*` helpers in IN_DEV-checked code paths. Keep fully qualified function calls.
-4. **ACP action safety** — state-changing actions require CSRF. No ACP toggles that weaken transport/security.
-5. **Network/Stripe** — use IPS HTTP framework, validate external URLs, keep webhook handlers idempotent.
-6. **Definition of done** — automation test + doc updates + import-sync verification for every feature.
+## Documentation Tasks
+
+- [ ] Keep `POLAR_GATEWAY_IMPLEMENTATION_PLAN.md` aligned with shipped changes.
+- [ ] Add dated changelog entries for each merged milestone.
+- [ ] Mirror important milestone updates into GitHub issue `#1` comments.

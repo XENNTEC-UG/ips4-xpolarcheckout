@@ -78,7 +78,7 @@ class _XPolarCheckout extends \IPS\nexus\Gateway
                 $defaultProductId => array(
                     'amount_type' => 'fixed',
                     'price_amount' => (int) $amountMinor,
-                    'price_currency' => \mb_strtoupper( (string) $transaction->amount->currency ),
+                    'price_currency' => \mb_strtolower( (string) $transaction->amount->currency ),
                 ),
             ),
         );
@@ -434,11 +434,11 @@ class _XPolarCheckout extends \IPS\nexus\Gateway
      */
     protected function moneyToMinorUnit( \IPS\nexus\Money $money )
     {
-        $parts = \explode( '.', (string) $money->amount );
-        $major = isset( $parts[0] ) ? (int) $parts[0] : 0;
-        $minor = isset( $parts[1] ) ? (int) \str_pad( \substr( $parts[1], 0, 2 ), 2, '0' ) : 0;
-        $sign = $major < 0 ? -1 : 1;
-        return ( \abs( $major ) * 100 + $minor ) * $sign;
+        $decimals = \IPS\nexus\Money::numberOfDecimalsForCurrency( $money->currency );
+        $multiplier = new \IPS\Math\Number( '1' . \str_repeat( '0', $decimals ) );
+        $minor = $money->amount->multiply( $multiplier );
+
+        return (int) (string) $minor;
     }
 
     /**
