@@ -6,12 +6,9 @@ This file tracks current implementation tasks. Canonical remote tracking remains
 
 ## User Test Required (Top Priority)
 
-- [ ] **Polar org currency alignment (required before live checkout test)**
-  - Agent validation on 2026-02-22 shows Polar currently reports org `default_presentment_currency=usd`.
-  - Local IPS transactions are currently `EUR`.
-  - Polar checkout creation rejects EUR-only price payloads with:
-    - `The organization's default presentment currency must be present in the prices.`
-  - Before manual checkout testing, align currency strategy (recommended: set Polar default presentment currency to `eur` for this sandbox org, or test with USD transactions only).
+- [ ] **ACP currency setting confirmation**
+  - In ACP gateway settings, confirm `Default presentment currency` is set to `EUR`.
+  - Save once and verify no validation error is shown.
 
 - [ ] **Manual paid checkout (sandbox)**
   - Complete a real hosted Polar checkout from Nexus invoice flow and confirm IPS transaction reaches paid state.
@@ -63,7 +60,12 @@ This file tracks current implementation tasks. Canonical remote tracking remains
   - Observed rows for `missing_signature`, `invalid_signature`, and `timestamp_too_old`.
 - [x] Polar sandbox API contract checks (latest run):
   - refund payload schema (valid UUIDv4 + reason enum) -> provider returns expected `Order not found` for unknown order.
-  - checkout payload with non-default currency (EUR) currently rejected by provider due default presentment currency requirement (tracked above).
+- [x] ACP presentment-currency setting shipped and validated:
+  - added `Default presentment currency` setting to gateway ACP form.
+  - save path now syncs Polar org `default_presentment_currency` via API and stores normalized `organization_id`/currency metadata.
+  - gateway validity now returns `xpolarcheckout_presentment_currency_mismatch` when transaction currency differs from configured presentment currency.
+  - checkout payload now includes explicit top-level `currency`.
+  - local runtime validation confirms EUR checkout payload succeeds after sync.
 
 ## Archive
 

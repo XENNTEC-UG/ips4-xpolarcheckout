@@ -10,6 +10,11 @@
   <word key="xpolarcheckout_webhook" js="0">Webhook</word>
   <word key="module__xpolarcheckout_webhook" js="0">Polar Checkout Webhook</word>
   <word key="xpolarcheckout_webhook_secret" js="0">Webhook Signing secret</word>
+  <word key="xpolarcheckout_presentment_currency" js="0">Default presentment currency</word>
+  <word key="xpolarcheckout_presentment_currency_desc" js="0">3-letter currency code (for example EUR). Saved in ACP and synced to your Polar organization default presentment currency.</word>
+  <word key="xpolarcheckout_presentment_currency_invalid" js="0">Default presentment currency must be a 3-letter code (for example EUR).</word>
+  <word key="xpolarcheckout_presentment_currency_sync_failed" js="0">Unable to sync default presentment currency to Polar. Verify token permissions and try again.</word>
+  <word key="xpolarcheckout_presentment_currency_mismatch" js="0">Gateway presentment currency does not match the transaction currency.</word>
   <word key="xpolarcheckout_tax" js="0">Tax</word>
   <word key="xpolarcheckout_tax_enable" js="0">Enable Tax calculation?</word>
   <word key="xpolarcheckout_tax_enable_desc" js="0">For tax collection purposes, Checkout uses billing and shipping addresses to determine the customer’s location.</word>

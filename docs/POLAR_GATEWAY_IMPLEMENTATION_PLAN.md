@@ -446,9 +446,21 @@ Rollback:
   - current sandbox org default is `usd`; local IPS transactions are currently `EUR`.
   - this is now tracked as top prerequisite in `docs/BACKLOG.md` before manual paid-checkout testing.
 
+### 2026-02-22 - ACP Currency Control Added
+
+- Implemented gateway ACP setting `Default presentment currency` to make org currency management explicit in IPS instead of external-only.
+- Save flow now synchronizes Polar org `default_presentment_currency` via API and stores:
+  - `organization_id`
+  - `organization_default_presentment_currency`
+- Added checkout guardrails:
+  - checkout payload sets explicit top-level `currency`.
+  - gateway validity returns `xpolarcheckout_presentment_currency_mismatch` if transaction currency differs from configured presentment currency.
+- Validation:
+  - runtime `testSettings()` execution confirmed org sync and normalized settings persistence.
+  - sandbox checkout API accepted EUR payload after sync (`201`).
+
 ### Remaining Phase 2 Work
 
 - B3: complete end-to-end paid checkout + successful refund validation with a real sandbox paid order (`gw_id`).
-- Resolve org/default-currency alignment for sandbox checkout tests (Polar default presentment currency vs IPS transaction currency).
 - Implement webhook endpoint lifecycle completion (`webhook_endpoint_id` discovery/creation/backfill) so integrity endpoint panel can fully sync events.
 - Full `docs/TEST_RUNTIME.md` smoke matrix execution with real paid + refund fixtures.

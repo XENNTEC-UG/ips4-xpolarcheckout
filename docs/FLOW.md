@@ -35,8 +35,9 @@ This document captures the active migration architecture for `xpolarcheckout`.
 - `t_extra` stores normalized provider snapshot fields for transaction-level evidence.
 - `i_status_extra` is used for invoice-level settlement display metadata where needed.
 
-## Pending Migration Items
+## Pending Validation (User Testing Required)
 
-- Finalize checkout/refund end-to-end validation using a real sandbox paid order flow.
-- Validate replay dry-run and live replay operations through ACP integrity actions.
-- Optional: extend customer/print hook presentation using normalized settlement snapshot schema.
+- Align Polar org default presentment currency with local IPS currency (EUR) before checkout test.
+- Complete a real sandbox paid checkout flow end-to-end (Nexus → Polar hosted → webhook → paid state).
+- Complete a real sandbox refund flow (partial → part-refunded, full → refunded).
+- Create and persist Polar webhook endpoint ID via gateway settings save or `syncEvents` path.

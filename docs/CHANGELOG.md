@@ -1,5 +1,19 @@
 # X Polar Checkout App - Changelog
 
+## 2026-02-22 - ACP Presentment Currency Control
+
+- Added new gateway ACP setting: `Default presentment currency`.
+- On gateway save, `testSettings()` now syncs Polar organization `default_presentment_currency` using Polar API.
+- Persisted organization metadata in gateway settings:
+  - `organization_id`
+  - `organization_default_presentment_currency`
+- Added currency guardrails:
+  - gateway validity now rejects non-matching transaction currencies with `xpolarcheckout_presentment_currency_mismatch`.
+  - checkout payload now sets explicit top-level `currency`.
+- Validation:
+  - runtime `testSettings()` call successfully synced org currency and returned normalized metadata.
+  - sandbox checkout API accepted EUR-only payload after sync (`201`).
+
 ## 2026-02-22 - Runtime Verification Pass + Signature Secret Normalization
 
 - Fixed webhook/replay secret normalization for Polar CLI hex secrets:

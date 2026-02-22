@@ -20,6 +20,7 @@ class _XPolarCheckout extends \IPS\nexus\Gateway
 {
     const SUPPORTS_REFUNDS = TRUE;
     const SUPPORTS_PARTIAL_REFUNDS = TRUE;
+    const DEFAULT_PRESENTMENT_CURRENCY = 'eur';
 
     const POLAR_API_BASE_PRODUCTION = 'https://api.polar.sh/v1';
     const POLAR_API_BASE_SANDBOX = 'https://sandbox-api.polar.sh/v1';
@@ -61,12 +62,20 @@ class _XPolarCheckout extends \IPS\nexus\Gateway
             throw new \LogicException( 'xpolarcheckout_missing_required_settings' );
         }
 
+        $transactionCurrency = \mb_strtolower( (string) $transaction->amount->currency );
+        $presentmentCurrency = isset( $settings['presentment_currency'] ) ? \mb_strtolower( \trim( (string) $settings['presentment_currency'] ) ) : '';
+        if ( $presentmentCurrency !== '' && $presentmentCurrency !== $transactionCurrency )
+        {
+            throw new \LogicException( 'xpolarcheckout_presentment_currency_mismatch' );
+        }
+
         $apiBase = static::resolveApiBase( $settings );
         $amountMinor = $this->moneyToMinorUnit( $transaction->amount );
 
         $externalCustomerId = $transaction->member ? (string) (int) $transaction->member->member_id : '';
         $payload = array(
             'products' => array( $defaultProductId ),
+            'currency' => $transactionCurrency,
             'success_url' => (string) $transaction->url()->setQueryString( 'pending', 1 ),
             'metadata' => array(
                 'ips_transaction_id' => (string) (int) $transaction->id,
@@ -79,7 +88,7 @@ class _XPolarCheckout extends \IPS\nexus\Gateway
                     array(
                         'amount_type' => 'fixed',
                         'price_amount' => (int) $amountMinor,
-                        'price_currency' => \mb_strtolower( (string) $transaction->amount->currency ),
+                        'price_currency' => $transactionCurrency,
                     ),
                 ),
             ),
@@ -146,6 +155,13 @@ class _XPolarCheckout extends \IPS\nexus\Gateway
             return 'xpolarcheckout_missing_required_settings';
         }
 
+        $presentmentCurrency = isset( $settings['presentment_currency'] ) ? \mb_strtolower( \trim( (string) $settings['presentment_currency'] ) ) : '';
+        $amountCurrency = \mb_strtolower( (string) $amount->currency );
+        if ( $presentmentCurrency !== '' && $presentmentCurrency !== $amountCurrency )
+        {
+            return 'xpolarcheckout_presentment_currency_mismatch';
+        }
+
         return TRUE;
     }
 
@@ -192,6 +208,12 @@ class _XPolarCheckout extends \IPS\nexus\Gateway
         ) ) );
         $form->add( new \IPS\Helpers\Form\Text( 'xpolarcheckout_access_token', isset( $current['access_token'] ) ? $current['access_token'] : '', FALSE ) );
         $form->add( new \IPS\Helpers\Form\Text( 'xpolarcheckout_default_product_id', isset( $current['default_product_id'] ) ? $current['default_product_id'] : '', FALSE ) );
+        $form->add( new \IPS\Helpers\Form\Text(
+            'xpolarcheckout_presentment_currency',
+            isset( $current['presentment_currency'] ) ? \mb_strtoupper( (string) $current['presentment_currency'] ) : \mb_strtoupper( static::DEFAULT_PRESENTMENT_CURRENCY ),
+            FALSE,
+            array( 'maxLength' => 3 )
+        ) );
         $form->add( new \IPS\Helpers\Form\Text( 'xpolarcheckout_webhook_secret', isset( $current['webhook_secret'] ) ? $current['webhook_secret'] : '', FALSE ) );
         $form->add( new \IPS\Helpers\Form\Number( 'xpolarcheckout_replay_lookback', isset( $current['replay_lookback'] ) ? (int) $current['replay_lookback'] : 3600, FALSE, array(
             'min' => 300,
@@ -230,6 +252,7 @@ class _XPolarCheckout extends \IPS\nexus\Gateway
         $settings['environment'] = ( isset( $settings['environment'] ) && $settings['environment'] === 'production' ) ? 'production' : 'sandbox';
         $settings['access_token'] = isset( $settings['access_token'] ) ? \trim( (string) $settings['access_token'] ) : '';
         $settings['default_product_id'] = isset( $settings['default_product_id'] ) ? \trim( (string) $settings['default_product_id'] ) : '';
+        $settings['presentment_currency'] = isset( $settings['presentment_currency'] ) ? \mb_strtolower( \trim( (string) $settings['presentment_currency'] ) ) : static::DEFAULT_PRESENTMENT_CURRENCY;
         $settings['webhook_secret'] = isset( $settings['webhook_secret'] ) ? \trim( (string) $settings['webhook_secret'] ) : '';
         $settings['replay_lookback'] = isset( $settings['replay_lookback'] ) ? \max( 300, \min( 86400, (int) $settings['replay_lookback'] ) ) : 3600;
         $settings['replay_overlap'] = isset( $settings['replay_overlap'] ) ? \max( 60, \min( 1800, (int) $settings['replay_overlap'] ) ) : 300;
@@ -238,6 +261,32 @@ class _XPolarCheckout extends \IPS\nexus\Gateway
         if ( $settings['access_token'] === '' || $settings['default_product_id'] === '' )
         {
             throw new \DomainException( 'xpolarcheckout_missing_required_settings' );
+        }
+
+        if ( !\preg_match( '/^[a-z]{3}$/', $settings['presentment_currency'] ) )
+        {
+            throw new \DomainException( 'xpolarcheckout_presentment_currency_invalid' );
+        }
+
+        try
+        {
+            $organization = static::syncOrganizationPresentmentCurrency( $settings, $settings['presentment_currency'] );
+            if ( \is_array( $organization ) )
+            {
+                if ( isset( $organization['id'] ) && \is_scalar( $organization['id'] ) )
+                {
+                    $settings['organization_id'] = (string) $organization['id'];
+                }
+                if ( isset( $organization['default_presentment_currency'] ) && \is_scalar( $organization['default_presentment_currency'] ) )
+                {
+                    $settings['organization_default_presentment_currency'] = \mb_strtolower( (string) $organization['default_presentment_currency'] );
+                }
+            }
+        }
+        catch ( \Exception $e )
+        {
+            \IPS\Log::log( $e, 'xpolarcheckout_currency_sync' );
+            throw new \DomainException( 'xpolarcheckout_presentment_currency_sync_failed' );
         }
 
         if ( empty( $settings['webhook_url'] ) )
@@ -441,6 +490,67 @@ class _XPolarCheckout extends \IPS\nexus\Gateway
     {
         $environment = isset( $settings['environment'] ) ? (string) $settings['environment'] : 'sandbox';
         return ( $environment === 'production' ) ? static::POLAR_API_BASE_PRODUCTION : static::POLAR_API_BASE_SANDBOX;
+    }
+
+    /**
+     * Sync organization default presentment currency.
+     *
+     * @param array  $settings
+     * @param string $currency
+     * @return array|NULL
+     */
+    protected static function syncOrganizationPresentmentCurrency( array $settings, $currency )
+    {
+        $accessToken = isset( $settings['access_token'] ) ? \trim( (string) $settings['access_token'] ) : '';
+        if ( $accessToken === '' )
+        {
+            return NULL;
+        }
+
+        $apiBase = static::resolveApiBase( $settings );
+        $headers = array(
+            'Authorization' => 'Bearer ' . $accessToken,
+            'Accept' => 'application/json',
+            'Content-Type' => 'application/json',
+        );
+
+        $organizationId = isset( $settings['organization_id'] ) ? \trim( (string) $settings['organization_id'] ) : '';
+        if ( $organizationId === '' )
+        {
+            $list = \IPS\Http\Url::external( $apiBase . '/organizations/' )
+                ->request( 20 )
+                ->setHeaders( $headers )
+                ->get()
+                ->decodeJson();
+
+            if ( !\is_array( $list ) || !isset( $list['items'] ) || !\is_array( $list['items'] ) || !isset( $list['items'][0]['id'] ) )
+            {
+                throw new \RuntimeException( 'Unable to resolve Polar organization id.' );
+            }
+
+            $organizationId = (string) $list['items'][0]['id'];
+        }
+
+        $encoded = \json_encode( array(
+            'default_presentment_currency' => \mb_strtolower( (string) $currency ),
+        ) );
+        if ( !\is_string( $encoded ) )
+        {
+            throw new \RuntimeException( 'Unable to encode organization currency payload.' );
+        }
+
+        $organization = \IPS\Http\Url::external( $apiBase . '/organizations/' . $organizationId )
+            ->request( 20 )
+            ->setHeaders( $headers )
+            ->patch( $encoded )
+            ->decodeJson();
+
+        if ( !\is_array( $organization ) )
+        {
+            throw new \RuntimeException( 'Unable to update Polar organization currency.' );
+        }
+
+        return $organization;
     }
 
     /**

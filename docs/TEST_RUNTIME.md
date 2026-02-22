@@ -52,7 +52,7 @@ Current runtime baseline is Phase 2 in-progress (`v1.0.1` / `10001`).
 ## Pending Suite Expansion
 
 - B3 end-to-end paid checkout + successful refund validation (real sandbox paid order fixture).
-- Checkout currency-path validation under mismatched IPS currency vs Polar org default presentment currency.
+- Full checkout/refund runtime matrix with non-EUR test fixture (to confirm mismatch guard UX/messages in storefront checkout flow).
 
 ## Automated Checks Already Executed
 
@@ -70,4 +70,8 @@ Current runtime baseline is Phase 2 in-progress (`v1.0.1` / `10001`).
   - rows persisted for `missing_signature`, `invalid_signature`, and `timestamp_too_old`.
 - Polar sandbox API contract checks:
   - refund schema accepted (unknown order id returns expected provider error).
-  - checkout request currently rejected when payload omits org default presentment currency.
+  - checkout request accepted after org currency sync (`201` with EUR-only price payload).
+- ACP currency-setting sync checks:
+  - `Default presentment currency` setting added to gateway configuration.
+  - `testSettings()` syncs Polar org `default_presentment_currency` and persists `organization_id`.
+  - mismatch guard validated: non-matching transaction currency returns `xpolarcheckout_presentment_currency_mismatch`.
