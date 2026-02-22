@@ -147,7 +147,7 @@ Copy and systematically rename:
 - namespace `IPS\xstripecheckout` -> `IPS\xpolarcheckout`
 - gateway class name `XStripeCheckout` -> `XPolarCheckout`
 - language keys, hook IDs, module names, task IDs, extension class names
-- schema table prefix from `xsc_` to `xpg_` (or agreed naming)
+- schema table prefix from `xsc_` to `xpc_`
 
 ## 7.2 Immediate removals after clone
 
@@ -256,7 +256,7 @@ Gateway `refund()` implementation:
 
 Keep forensic model from Stripe app:
 
-- table `xpg_webhook_forensics`
+- table `xpc_webhook_forensics`
 - log failure reason, event type/id, IP, HTTP status, payload snippet, timestamp
 - ACP viewer module with filters/search
 
@@ -468,3 +468,115 @@ Internal app baseline:
 
 - `ips-dev-source/apps/xstripecheckout/app-source/...` (gateway, webhook, tasks, hooks, extensions, schema, ACP modules)
 - `ips-dev-source/apps/xstripecheckout/docs/...` (README/FLOW/FEATURES/TEST docs)
+
+## 19) Implementation Review Notes (Dev Review, 2026-02-22)
+
+Peer review of this plan after inspecting the actual xpolarcheckout source tree.
+
+### 19.1 Current Source State
+
+The app-source tree was copied verbatim from xstripecheckout. As of review:
+
+- Gateway class has already been renamed to `XPolarCheckout`
+- Namespace baseline is already `IPS\xpolarcheckout`
+- Extension class is still named `StripeDisputeSummary`
+- `code_loadJs.php` (Stripe.js injection) is still present
+- All 12 setup/upgrade migrations (`upg_10000` through `upg_10012`) carry Stripe-specific schema history
+- `docs/` folder was copied wholesale including Stripe-specific automation test scripts
+- Table prefix is still `xsc_` in schema references
+
+Phase 0/1 must address the remaining Stripe-specific items before any functional Polar work begins.
+
+### 19.2 Dependency Management (Critical Decision for Phase 1)
+
+Recheck correction: the current `xstripecheckout` implementation does not use Stripe SDK/Composer; it uses direct `\IPS\Http` REST calls. So Composer is not automatically the baseline pattern.
+
+Implementation options:
+
+1. **No external dependencies (baseline-compatible)**: Use direct `\IPS\Http` calls for Polar endpoints and implement Standard Webhooks-compatible verification in app code.
+2. **Composer dependencies (optional)**: Adopt `polar-sh/sdk` and/or `standard-webhooks/standard-webhooks`, then explicitly define install/autoload strategy for IPS4/container runtime.
+
+Decision must be made in Phase 1 and documented before Phase 2 coding starts.
+
+### 19.3 Polar Customer Model (Under-specified)
+
+Section 4.2 mentions `external_customer_id` and `customer_id` but several questions are unresolved:
+
+- Does Polar auto-create customers on first checkout, or must we `POST /v1/customers/` first?
+- How are returning IPS members reconciled? Stripe has a persistent customer object linked via metadata; clarify the Polar equivalent.
+- The Stripe gateway's `getCustomer()` method does significant work (member-to-Stripe-customer mapping, metadata sync, `joined` timestamp). The Polar equivalent needs a clear design.
+
+Recommend a sandbox spike early in Phase 2: create a checkout with `external_customer_id` set to an IPS member ID, complete it, then inspect the resulting order to confirm metadata flow and customer state.
+
+### 19.4 Webhook Event Subscriptions
+
+Section 8.1 lists `webhook_endpoint_id` as a setting and Phase 2 mentions auto-provisioning via `testSettings()`, but the plan does not specify which events to subscribe to when creating the endpoint. Based on the event mapping in section 9.1, the v1 subscription list should be:
+
+- `order.created`
+- `order.paid`
+- `order.updated`
+- `order.refunded`
+- `refund.created`
+- `refund.updated`
+- `checkout.updated`
+
+Document this explicitly so `testSettings()` creates the endpoint with the correct event filter.
+
+### 19.5 Setup/Upgrade Migration Strategy
+
+The 12 copied upgrade directories contain Stripe-specific migrations (hook registrations, settings inserts, schema changes). Carrying this history into the Polar app is dangerous — it references wrong table names, wrong setting keys, and wrong hook class paths.
+
+Recommendation: **Gut all `setup/upg_*` directories**. Start with a single clean `upg_10000` (or whatever version code maps to v1.0.0) containing only:
+
+- The `xpc_webhook_forensics` table creation
+- Polar-specific gateway settings inserts
+- Correct hook/module/task registrations for xpolarcheckout
+
+### 19.6 Table Prefix Decision
+
+Decision: use `xpc_` consistently (app-key aligned prefix for `xpolarcheckout`).
+
+### 19.7 Currency and Ad-hoc Price Validation
+
+The checkout strategy (section 8.2) relies on ad-hoc prices. Validate in sandbox early:
+
+- Confirm ad-hoc prices work alongside `external_customer_id`
+- Confirm metadata flows from checkout to order (the plan assumes this)
+- Confirm amount precision and rounding matches IPS invoice totals (cent-level)
+- Confirm which currencies Polar supports and add `checkValidity()` enforcement
+
+### 19.8 Phase 0/1 Checklist
+
+Consolidated rename/cleanup checklist for Codex:
+
+- [x] Namespace: `IPS\xstripecheckout` -> `IPS\xpolarcheckout` (all files)
+- [x] Gateway class: `XStripeCheckout` -> `XPolarCheckout` (class + directory name)
+- [ ] Table prefix: `xsc_` -> `xpc_` (schema.json, all PHP references)
+- [ ] Extension rename: `StripeDisputeSummary` -> `PolarPaymentSummary` (class + extensions.json)
+- [ ] Remove `code_loadJs.php` hook + its entry in `hooks.json`
+- [ ] Remove Stripe Tax readiness logic
+- [ ] Remove dispute automation code paths
+- [ ] Gut `setup/upg_*` directories — start clean
+- [ ] Update `data/application.json` (app key, name, author, version)
+- [ ] Update all `data/*.json` metadata files for new names
+- [ ] Remove or stub Stripe API calls/references so the app is parse-clean with zero Stripe references
+- [ ] Choose dependency strategy (`\IPS\Http`-only vs Composer libs) and document autoload/runtime implications
+- [ ] Clean `docs/` — remove Stripe-specific automation scripts, update README.md entry points
+- [ ] Remove `releases/Stripe Checkout Gateway 1.1.1.tar`
+
+### 19.9 Open Decision Recommendations
+
+| # | Decision | Recommendation | Rationale |
+|---|---|---|---|
+| 2 | Tax source-of-truth | Polar MoR tax | Fighting the MoR model creates reconciliation nightmares. Disable IPS tax calc for Polar gateway transactions. |
+| 3 | V1 scope | One-time only | Subscriptions add massive lifecycle complexity (upgrades, cancellations, renewals). Ship v1 without them. |
+| 4 | Webhook verification | Decide in Phase 1 (`\IPS\Http`-only vs vendor library) | Either approach can work; lock one path early to avoid rework. |
+| 5 | Dispute parity | Defer to v2 | Polar lacks Stripe's dispute event richness. Don't build speculative infrastructure. |
+
+### 19.10 Codex Recheck Result (Issue #1 Alignment)
+
+Cross-check completed on February 22, 2026:
+
+- Issue `#1` and Section 19 are aligned on rename/migration blockers.
+- Table prefix decision is now locked to `xpc_` in this plan.
+- Dependency discussion is corrected to reflect the actual Stripe baseline (`\IPS\Http` direct API, no Stripe SDK/Composer dependency).
