@@ -1,12 +1,12 @@
 # X Polar Checkout Features
 
-> Enterprise-grade Stripe Checkout for IPS Nexus. `xpolarcheckout` delivers secure hosted payments, webhook reconciliation, tax visibility, and operational integrity tooling in one gateway app.
+> Polar Checkout gateway for IPS Nexus. `xpolarcheckout` delivers hosted payments, webhook reconciliation, and integrity tooling while the migration from Stripe baseline code is completed.
 
 ## Version Snapshot
 
 | Package version | Long version | Source |
 | --- | --- | --- |
-| `1.1.7` | `10017` | `app-source/data/versions.json` |
+| `1.0.1` | `10001` | `app-source/data/versions.json` |
 
 ## Product Positioning
 

@@ -1,0 +1,12 @@
+{
+    "added": [
+        "code_GatewayModel",
+        "code_memberProfileTab",
+        "couponNameHook",
+        "invoiceViewHook",
+        "theme_sc_clients_settle",
+        "theme_sc_print_settle"
+    ],
+    "edited": [],
+    "removed": []
+}

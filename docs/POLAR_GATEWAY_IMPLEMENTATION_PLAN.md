@@ -791,3 +791,40 @@ Current readiness after this fix:
 
 - Prior install crash should be resolved.
 - Next checkpoint is ACP install retest, then basic checkout/webhook smoke flow.
+
+### 19.16 Post-Install Recovery — Missing Gateway Registration (Codex, 2026-02-22)
+
+Observed after ACP install success:
+
+- App enabled, but `X Polar Checkout` missing from ACP gateway chooser.
+- DB check showed `core_hooks`, `core_modules`, and `core_tasks` had no rows for `xpolarcheckout`.
+
+Root cause:
+
+- Initial install attempt failed at schema step before JSON registration stage (`installJsonData()`).
+- App could end up enabled later without hooks/modules/tasks registration, so gateway hook never loaded.
+
+Runtime recovery executed:
+
+- Ran `\IPS\Application::load('xpolarcheckout')->installJsonData()` in container runtime context.
+- Post-recovery verification:
+  - `core_hooks` count: 6
+  - `core_modules` count: 2
+  - `core_tasks` count: 2
+  - `\IPS\nexus\Gateway::gateways()` contains `XPolarCheckout`.
+
+Source-level hardening added:
+
+- New upgrade step `setup/upg_10001` (`v1.0.1`) to reapply:
+  - hooks (`hooks.json`)
+  - modules (`modules.json`)
+  - tasks (`tasks.json`)
+- Version metadata updated to `1.0.1` / `10001`.
+
+Current priority TODO list:
+
+1. ACP verify: `X Polar Checkout` appears in gateway add dialog.
+2. Basic smoke: save gateway settings and verify webhook URL rendering.
+3. Checkout redirect smoke: IPS invoice -> Polar checkout URL redirect.
+4. Webhook paid smoke: signed `order.paid` results in paid IPS transaction.
+5. Continue Phase 2 B2/B3/B4 implementation (endpoint provisioning/sync, replay API, dead lang key pruning, checkout payload/currency validation).

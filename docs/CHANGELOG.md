@@ -1,5 +1,13 @@
 # Stripe Checkout App - Changelog
 
+## 2026-02-22 — v1.0.1
+
+- Fixed install-path blocker where initial schema failure could leave the app enabled without registered hooks/modules/tasks, causing `X Polar Checkout` to be missing from ACP gateway selection.
+- Added schema table `name` definition for `xpc_webhook_forensics` (`app-source/data/schema.json`) to prevent `Undefined array key "name"` during installation.
+- Added recovery upgrade package `setup/upg_10001` to reapply hooks/modules/tasks for partially-installed environments.
+- Updated app version metadata to `1.0.1` / `10001`.
+- Phase 2 B1 completed: Standard Webhooks signature verification fixed in webhook controller.
+
 ## 2026-02-21 — v1.1.4
 
 - **Security**: Added timestamp freshness validation to `checkSignature()` in webhook handler. Rejects webhook signatures older than 10 minutes (600s tolerance) to prevent replay attacks. Logs rejected timestamps with drift details for debugging.
