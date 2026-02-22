@@ -551,18 +551,18 @@ Consolidated rename/cleanup checklist for Codex:
 
 - [x] Namespace: `IPS\xstripecheckout` -> `IPS\xpolarcheckout` (all files)
 - [x] Gateway class: `XStripeCheckout` -> `XPolarCheckout` (class + directory name)
-- [ ] Table prefix: `xsc_` -> `xpc_` (schema.json, all PHP references)
-- [ ] Extension rename: `StripeDisputeSummary` -> `PolarPaymentSummary` (class + extensions.json)
-- [ ] Remove `code_loadJs.php` hook + its entry in `hooks.json`
+- [x] Table prefix: `xsc_` -> `xpc_` (schema.json, all PHP references)
+- [x] Extension rename: `StripeDisputeSummary` -> `PolarPaymentSummary` (class + extensions.json)
+- [x] Remove `code_loadJs.php` hook + its entry in `hooks.json`
 - [ ] Remove Stripe Tax readiness logic
-- [ ] Remove dispute automation code paths
-- [ ] Gut `setup/upg_*` directories — start clean
-- [ ] Update `data/application.json` (app key, name, author, version)
+- [ ] Remove dispute automation code paths (Phase 0 interim: `charge.dispute.*` webhook events are ignored)
+- [x] Gut `setup/upg_*` directories — start clean
+- [x] Update `data/application.json` (app key, name, author, version)
 - [ ] Update all `data/*.json` metadata files for new names
 - [ ] Remove or stub Stripe API calls/references so the app is parse-clean with zero Stripe references
 - [ ] Choose dependency strategy (`\IPS\Http`-only vs Composer libs) and document autoload/runtime implications
-- [ ] Clean `docs/` — remove Stripe-specific automation scripts, update README.md entry points
-- [ ] Remove `releases/Stripe Checkout Gateway 1.1.1.tar`
+- [x] Clean `docs/` — remove Stripe-specific automation scripts, update README.md entry points
+- [x] Remove `releases/Stripe Checkout Gateway 1.1.1.tar`
 
 ### 19.9 Open Decision Recommendations
 

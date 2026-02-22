@@ -1,7 +1,7 @@
 {
     "core": {
         "MemberACPProfileBlocks": {
-            "StripeDisputeSummary": "IPS\\xpolarcheckout\\extensions\\core\\MemberACPProfileBlocks\\StripeDisputeSummary"
+            "PolarPaymentSummary": "IPS\\xpolarcheckout\\extensions\\core\\MemberACPProfileBlocks\\PolarPaymentSummary"
         },
         "AdminNotifications": {
             "PaymentIntegrity": "IPS\\xpolarcheckout\\extensions\\core\\AdminNotifications\\PaymentIntegrity"

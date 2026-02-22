@@ -1,5 +1,5 @@
 {
-	"xsc_webhook_forensics": {
+	"xpc_webhook_forensics": {
 		"columns": {
 			"forensic_id": {
 				"allow_null": false,

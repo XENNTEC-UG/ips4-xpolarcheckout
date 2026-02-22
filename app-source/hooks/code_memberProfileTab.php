@@ -9,7 +9,7 @@ if ( !\defined( '\IPS\SUITE_UNIQUE_KEY' ) )
 class xpolarcheckout_hook_code_memberProfileTab extends _HOOK_CLASS_
 {
 	/**
-	 * Get left-column blocks — append Stripe Dispute Summary block
+	 * Get left-column blocks — append Polar payment summary block
 	 *
 	 * @return	array
 	 */
@@ -18,7 +18,7 @@ class xpolarcheckout_hook_code_memberProfileTab extends _HOOK_CLASS_
 		try
 		{
 			$return = parent::leftColumnBlocks();
-			$return[] = 'IPS\xpolarcheckout\extensions\core\MemberACPProfileBlocks\StripeDisputeSummary';
+			$return[] = 'IPS\xpolarcheckout\extensions\core\MemberACPProfileBlocks\PolarPaymentSummary';
 			return $return;
 		}
 		catch ( \Throwable $e )

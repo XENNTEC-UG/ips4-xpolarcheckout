@@ -29,12 +29,12 @@ public static function hookData(): array {
 				<td>{{if !empty( $stripeSnapshot[ \'amount_subtotal_display\' ] )}}{$stripeSnapshot[ \'amount_subtotal_display\' ]}{{else}}-{{endif}}</td>
 			</tr>
 			{{if !empty( $stripeSnapshot[ \'amount_subtotal_minor\' ] ) AND !empty( $stripeSnapshot[ \'amount_total_minor\' ] )}}
-				{{$xsc_discountMinor = (int) $stripeSnapshot[ \'amount_subtotal_minor\' ] - (int) $stripeSnapshot[ \'amount_total_minor\' ] + (int) $stripeSnapshot[ \'amount_tax_minor\' ];}}
-				{{if $xsc_discountMinor > 0}}
-					{{$xsc_discountDisplay = \\strtoupper( $stripeSnapshot[ \'currency\' ] ) . \' \' . \\number_format( $xsc_discountMinor / 100, 2 );}}
+				{{$xpc_discountMinor = (int) $stripeSnapshot[ \'amount_subtotal_minor\' ] - (int) $stripeSnapshot[ \'amount_total_minor\' ] + (int) $stripeSnapshot[ \'amount_tax_minor\' ];}}
+				{{if $xpc_discountMinor > 0}}
+					{{$xpc_discountDisplay = \\strtoupper( $stripeSnapshot[ \'currency\' ] ) . \' \' . \\number_format( $xpc_discountMinor / 100, 2 );}}
 					<tr>
 						<td><strong>{lang="xpolarcheckout_coupon_discount"}</strong></td>
-						<td style=\'color: #28a745;\'>-{$xsc_discountDisplay}</td>
+						<td style=\'color: #28a745;\'>-{$xpc_discountDisplay}</td>
 					</tr>
 				{{endif}}
 			{{endif}}

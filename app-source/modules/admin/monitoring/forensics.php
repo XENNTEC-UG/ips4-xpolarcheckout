@@ -43,8 +43,8 @@ class _forensics extends \IPS\Dispatcher\Controller
 	 */
 	protected function manage()
 	{
-		$table = new \IPS\Helpers\Table\Db( 'xsc_webhook_forensics', \IPS\Http\Url::internal( 'app=xpolarcheckout&module=monitoring&controller=forensics' ) );
-		$table->langPrefix = 'xsc_forensics_';
+		$table = new \IPS\Helpers\Table\Db( 'xpc_webhook_forensics', \IPS\Http\Url::internal( 'app=xpolarcheckout&module=monitoring&controller=forensics' ) );
+		$table->langPrefix = 'xpc_forensics_';
 		$table->sortBy = $table->sortBy ?: 'created_at';
 		$table->sortDirection = $table->sortDirection ?: 'desc';
 
@@ -53,10 +53,10 @@ class _forensics extends \IPS\Dispatcher\Controller
 
 		/* Filters by failure reason */
 		$table->filters = array(
-			'xsc_forensics_filter_invalid_payload'   => 'failure_reason=\'invalid_payload\'',
-			'xsc_forensics_filter_missing_signature'  => 'failure_reason=\'missing_signature\'',
-			'xsc_forensics_filter_invalid_signature'  => 'failure_reason=\'invalid_signature\'',
-			'xsc_forensics_filter_timestamp_too_old'  => 'failure_reason=\'timestamp_too_old\'',
+			'xpc_forensics_filter_invalid_payload'   => 'failure_reason=\'invalid_payload\'',
+			'xpc_forensics_filter_missing_signature'  => 'failure_reason=\'missing_signature\'',
+			'xpc_forensics_filter_invalid_signature'  => 'failure_reason=\'invalid_signature\'',
+			'xpc_forensics_filter_timestamp_too_old'  => 'failure_reason=\'timestamp_too_old\'',
 		);
 
 		/* Quick search by IP */
@@ -69,7 +69,7 @@ class _forensics extends \IPS\Dispatcher\Controller
 		$table->parsers = array(
 			'failure_reason' => function( $val )
 			{
-				$key = 'xsc_forensics_reason_' . $val;
+				$key = 'xpc_forensics_reason_' . $val;
 
 				return \IPS\Member::loggedIn()->language()->addToStack( $key );
 			},
@@ -87,7 +87,7 @@ class _forensics extends \IPS\Dispatcher\Controller
 			},
 		);
 
-		\IPS\Output::i()->title = \IPS\Member::loggedIn()->language()->addToStack( 'xsc_forensics_title' );
+		\IPS\Output::i()->title = \IPS\Member::loggedIn()->language()->addToStack( 'xpc_forensics_title' );
 		\IPS\Output::i()->output = (string) $table;
 	}
 }

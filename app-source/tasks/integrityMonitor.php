@@ -50,12 +50,12 @@ class _integrityMonitor extends \IPS\Task
 		/* Prune old forensics entries (once daily via last-cleaned check) */
 		try
 		{
-			$lastCleaned = isset( \IPS\Data\Store::i()->xsc_forensics_last_cleaned ) ? (int) \IPS\Data\Store::i()->xsc_forensics_last_cleaned : 0;
+			$lastCleaned = isset( \IPS\Data\Store::i()->xpc_forensics_last_cleaned ) ? (int) \IPS\Data\Store::i()->xpc_forensics_last_cleaned : 0;
 			if ( \time() - $lastCleaned > 86400 )
 			{
 				$cutoff = \time() - ( static::FORENSICS_RETENTION_DAYS * 86400 );
-				\IPS\Db::i()->delete( 'xsc_webhook_forensics', array( 'created_at<?', $cutoff ) );
-				\IPS\Data\Store::i()->xsc_forensics_last_cleaned = \time();
+				\IPS\Db::i()->delete( 'xpc_webhook_forensics', array( 'created_at<?', $cutoff ) );
+				\IPS\Data\Store::i()->xpc_forensics_last_cleaned = \time();
 			}
 		}
 		catch ( \Throwable $e )

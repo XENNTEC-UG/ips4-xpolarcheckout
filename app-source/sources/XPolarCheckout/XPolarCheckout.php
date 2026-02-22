@@ -27,8 +27,6 @@ class _XPolarCheckout extends \IPS\nexus\Gateway
 	 * @brief	Webhook event types required by this gateway. Single source of truth.
 	 */
 	const REQUIRED_WEBHOOK_EVENTS = array(
-		'charge.dispute.closed',
-		'charge.dispute.created',
 		'charge.refunded',
 		'checkout.session.completed',
 		'checkout.session.async_payment_succeeded',

@@ -3,10 +3,6 @@
         "type": "C",
         "class": "\\IPS\\nexus\\Gateway"
     },
-    "code_loadJs": {
-        "type": "C",
-        "class": "\\IPS\\nexus\\Application"
-    },
     "theme_sc_clients_settle": {
         "type": "S",
         "class": "\\IPS\\Theme\\class_nexus_front_clients"

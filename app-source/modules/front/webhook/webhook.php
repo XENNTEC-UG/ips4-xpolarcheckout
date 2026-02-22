@@ -60,6 +60,13 @@ class _webhook extends \IPS\Dispatcher\Controller
 			return;
 		}
 
+		/* Phase 0: dispute automation is intentionally disabled for Polar baseline */
+		if ( \in_array( $decodedBody['type'], array( 'charge.dispute.closed', 'charge.dispute.created' ), TRUE ) )
+		{
+			\IPS\Output::i()->sendOutput( 'IGNORED_EVENT', 200 );
+			return;
+		}
+
 		// charge.refunded — mark transaction refunded, extract refund data
 		if( $decodedBody['type'] == 'charge.refunded' )
 		{
@@ -1387,7 +1394,7 @@ class _webhook extends \IPS\Dispatcher\Controller
 				$snippet = \mb_substr( $body, 0, 500 );
 			}
 
-			\IPS\Db::i()->insert( 'xsc_webhook_forensics', array(
+			\IPS\Db::i()->insert( 'xpc_webhook_forensics', array(
 				'event_type'      => \is_string( $eventType ) ? \mb_substr( $eventType, 0, 64 ) : '',
 				'event_id'        => \is_string( $eventId ) ? \mb_substr( $eventId, 0, 64 ) : NULL,
 				'failure_reason'  => \mb_substr( (string) $failureReason, 0, 64 ),

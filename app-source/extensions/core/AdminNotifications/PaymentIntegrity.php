@@ -80,15 +80,8 @@ class _PaymentIntegrity extends \IPS\core\AdminNotification
 		   a Stripe API call which is too heavy for a 5-minute polling task.
 		   Drift is visible on the integrity panel instead. */
 
-		/* Tax not collecting */
-		if ( $stats['tax_readiness_status'] !== 'collecting' AND $stats['tax_readiness_status'] !== 'unknown' )
-		{
-			\IPS\core\AdminNotification::send( 'xpolarcheckout', 'PaymentIntegrity', 'tax_not_collecting', TRUE );
-		}
-		else
-		{
-			\IPS\core\AdminNotification::remove( 'xpolarcheckout', 'PaymentIntegrity', 'tax_not_collecting' );
-		}
+		/* Tax readiness alerts are disabled during Polar Phase 0 migration */
+		\IPS\core\AdminNotification::remove( 'xpolarcheckout', 'PaymentIntegrity', 'tax_not_collecting' );
 	}
 
 	/**
@@ -150,7 +143,7 @@ class _PaymentIntegrity extends \IPS\core\AdminNotification
 	 */
 	public function title()
 	{
-		return \IPS\Member::loggedIn()->language()->addToStack( 'xsc_alert_' . $this->extra . '_title' );
+		return \IPS\Member::loggedIn()->language()->addToStack( 'xpc_alert_' . $this->extra . '_title' );
 	}
 
 	/**
@@ -172,16 +165,13 @@ class _PaymentIntegrity extends \IPS\core\AdminNotification
 		switch ( $this->extra )
 		{
 			case 'webhook_errors':
-				return \IPS\Member::loggedIn()->language()->addToStack( 'xsc_alert_webhook_errors_subtitle', FALSE, array( 'sprintf' => array( (int) $stats['webhook_error_count_24h'] ) ) );
+				return \IPS\Member::loggedIn()->language()->addToStack( 'xpc_alert_webhook_errors_subtitle', FALSE, array( 'sprintf' => array( (int) $stats['webhook_error_count_24h'] ) ) );
 
 			case 'replay_stale':
-				return \IPS\Member::loggedIn()->language()->addToStack( 'xsc_alert_replay_stale_subtitle' );
+				return \IPS\Member::loggedIn()->language()->addToStack( 'xpc_alert_replay_stale_subtitle' );
 
 			case 'mismatches':
-				return \IPS\Member::loggedIn()->language()->addToStack( 'xsc_alert_mismatches_subtitle', FALSE, array( 'sprintf' => array( (int) $stats['mismatch_count_30d'] ) ) );
-
-			case 'tax_not_collecting':
-				return \IPS\Member::loggedIn()->language()->addToStack( 'xsc_alert_tax_not_collecting_subtitle', FALSE, array( 'sprintf' => array( $stats['tax_readiness_status'] ) ) );
+				return \IPS\Member::loggedIn()->language()->addToStack( 'xpc_alert_mismatches_subtitle', FALSE, array( 'sprintf' => array( (int) $stats['mismatch_count_30d'] ) ) );
 
 			default:
 				return NULL;
@@ -195,7 +185,7 @@ class _PaymentIntegrity extends \IPS\core\AdminNotification
 	 */
 	public function body()
 	{
-		return \IPS\Member::loggedIn()->language()->addToStack( 'xsc_alert_' . $this->extra . '_body' );
+		return \IPS\Member::loggedIn()->language()->addToStack( 'xpc_alert_' . $this->extra . '_body' );
 	}
 
 	/**
@@ -275,9 +265,6 @@ class _PaymentIntegrity extends \IPS\core\AdminNotification
 
 			case 'mismatches':
 				return (int) $stats['mismatch_count_30d'] === 0;
-
-			case 'tax_not_collecting':
-				return $stats['tax_readiness_status'] === 'collecting' OR $stats['tax_readiness_status'] === 'unknown';
 
 			default:
 				return FALSE;

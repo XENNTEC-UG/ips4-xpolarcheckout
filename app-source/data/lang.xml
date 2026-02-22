@@ -8,7 +8,7 @@
   <word key="xpolarcheckout_secret" js="0">Secret key</word>
   <word key="xpolarcheckout_publishable" js="0">Publishable Key</word>
   <word key="xpolarcheckout_webhook" js="0">Webhook</word>
-  <word key="module__xpolarcheckout_webhook" js="0">Stripe Checkout Webhook</word>
+  <word key="module__xpolarcheckout_webhook" js="0">Polar Checkout Webhook</word>
   <word key="xpolarcheckout_webhook_secret" js="0">Webhook Signing secret</word>
   <word key="xpolarcheckout_tax" js="0">Tax</word>
   <word key="xpolarcheckout_tax_enable" js="0">Enable Tax calculation?</word>
@@ -63,7 +63,7 @@
   <word key="xpolarcheckout_address_collection" js="0">Collect Billing address</word>
   <word key="xpolarcheckout_address_collection_desc" js="0">Specify whether Checkout should collect the customer’s billing address.</word>
   <word key="module__xpolarcheckout_monitoring" js="0">Monitoring</word>
-  <word key="xpolarcheckout_integrity_title" js="0">Stripe Checkout Integrity</word>
+  <word key="xpolarcheckout_integrity_title" js="0">Polar Checkout Integrity</word>
   <word key="xpolarcheckout_integrity_intro" js="0">Operational visibility panel for Stripe webhook health, replay status, and Stripe-vs-IPS settlement mismatches.</word>
   <word key="xpolarcheckout_integrity_replay_now" js="0">Run Webhook Replay Now</word>
   <word key="xpolarcheckout_integrity_replay_success" js="0">Webhook replay executed successfully.</word>
