@@ -763,3 +763,31 @@ Remaining Phase 2 blockers:
 - B2: implement webhook endpoint sync/provision and replay API calls
 - B3: prune dead lang keys
 - B4: sandbox-validate ad-hoc checkout price payload and currency handling
+
+### 19.15 Install Blocker Fix — Schema `name` Key (Codex, 2026-02-22)
+
+Reported ACP install failure:
+
+- `1S111/1 Undefined array key "name"` in `\IPS\Db::_createTableQuery()` during app install
+
+Root cause:
+
+- `app-source/data/schema.json` table definition for `xpc_webhook_forensics` was missing top-level `name`.
+- IPS installer calls `\IPS\Db::createTable( $definition )` and expects `name` in each table definition object.
+
+Fix applied:
+
+- Added:
+  - `"name": "xpc_webhook_forensics"`
+  to `app-source/data/schema.json`
+
+Validation:
+
+- Source schema sanity check in container: table definition `name` present and matches table key
+- Runtime schema sanity check in container (`/var/www/html/applications/xpolarcheckout/data/schema.json`) also confirmed
+- Ran `scripts/ips-dev-sync.ps1 -Mode import` to push fix into runtime tree before ACP retest
+
+Current readiness after this fix:
+
+- Prior install crash should be resolved.
+- Next checkpoint is ACP install retest, then basic checkout/webhook smoke flow.
