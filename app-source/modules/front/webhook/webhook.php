@@ -46,6 +46,7 @@ class _webhook extends \IPS\Dispatcher\Controller
 
         $signature = isset( $_SERVER['HTTP_WEBHOOK_SIGNATURE'] ) ? (string) $_SERVER['HTTP_WEBHOOK_SIGNATURE'] : '';
         $timestamp = isset( $_SERVER['HTTP_WEBHOOK_TIMESTAMP'] ) ? (string) $_SERVER['HTTP_WEBHOOK_TIMESTAMP'] : '';
+        $webhookId = isset( $_SERVER['HTTP_WEBHOOK_ID'] ) ? (string) $_SERVER['HTTP_WEBHOOK_ID'] : '';
 
         if ( $signature === '' )
         {
@@ -69,7 +70,7 @@ class _webhook extends \IPS\Dispatcher\Controller
         }
 
         $secret = isset( $settings['webhook_secret'] ) ? (string) $settings['webhook_secret'] : '';
-        if ( !$this->checkSignature( $signature, $body, $secret, $eventType, $eventId, $timestamp ) )
+        if ( !$this->checkSignature( $signature, $body, $secret, $eventType, $eventId, $timestamp, $webhookId ) )
         {
             return;
         }
@@ -493,9 +494,10 @@ class _webhook extends \IPS\Dispatcher\Controller
      * @param string|NULL $eventType
      * @param string|NULL $eventId
      * @param string|NULL $timestamp
+     * @param string|NULL $webhookId
      * @return bool
      */
-    protected function checkSignature( $signature, $body, $secret, $eventType = NULL, $eventId = NULL, $timestamp = NULL )
+    protected function checkSignature( $signature, $body, $secret, $eventType = NULL, $eventId = NULL, $timestamp = NULL, $webhookId = NULL )
     {
         if ( $secret === '' )
         {
@@ -504,26 +506,65 @@ class _webhook extends \IPS\Dispatcher\Controller
             return FALSE;
         }
 
-        $rawPayload = ( $timestamp !== NULL && $timestamp !== '' ) ? ( $timestamp . '.' . $body ) : $body;
-        $computed = \hash_hmac( 'sha256', (string) $rawPayload, $secret );
+        $timestampValue = (string) $timestamp;
+        $webhookIdValue = (string) $webhookId;
+        if ( $timestampValue === '' || $webhookIdValue === '' )
+        {
+            $this->logForensicEvent( 'missing_signature', 403, $eventType, $eventId, $body );
+            \IPS\Output::i()->sendOutput( 'INVALID_SIGNATURE', 403 );
+            return FALSE;
+        }
 
-        $tokens = \preg_split( '/[,\s]+/', (string) $signature );
+        if ( !\ctype_digit( $timestampValue ) )
+        {
+            $this->logForensicEvent( 'invalid_signature', 403, $eventType, $eventId, $body );
+            \IPS\Output::i()->sendOutput( 'INVALID_SIGNATURE', 403 );
+            return FALSE;
+        }
+
+        /* Standard Webhooks recommends rejecting stale attempts to reduce replay risk. */
+        if ( \abs( \time() - (int) $timestampValue ) > 300 )
+        {
+            $this->logForensicEvent( 'timestamp_too_old', 403, $eventType, $eventId, $body );
+            \IPS\Output::i()->sendOutput( 'INVALID_SIGNATURE', 403 );
+            return FALSE;
+        }
+
+        $secretMaterial = (string) $secret;
+        if ( \strpos( $secretMaterial, 'whsec_' ) === 0 )
+        {
+            $secretMaterial = (string) \substr( $secretMaterial, 6 );
+        }
+
+        $secretBytes = \base64_decode( $secretMaterial, TRUE );
+        if ( $secretBytes === FALSE )
+        {
+            /* Local Polar CLI secrets may be provided as raw text in development. */
+            $secretBytes = $secretMaterial;
+        }
+
+        $rawPayload = $webhookIdValue . '.' . $timestampValue . '.' . $body;
+        $computed = \base64_encode( \hash_hmac( 'sha256', (string) $rawPayload, $secretBytes, TRUE ) );
+
+        $tokens = \preg_split( '/\s+/', \trim( (string) $signature ) );
         $matched = FALSE;
         foreach ( $tokens as $token )
         {
-            $candidate = \trim( (string) $token );
-            if ( $candidate === '' )
+            $pair = \trim( (string) $token );
+            if ( $pair === '' )
             {
                 continue;
             }
 
-            if ( \strpos( $candidate, '=' ) !== FALSE )
+            $parts = \explode( ',', $pair, 2 );
+            if ( \count( $parts ) !== 2 )
             {
-                $parts = \explode( '=', $candidate, 2 );
-                $candidate = isset( $parts[1] ) ? $parts[1] : '';
+                continue;
             }
 
-            if ( $candidate !== '' && \hash_equals( $computed, $candidate ) )
+            $version = \trim( (string) $parts[0] );
+            $candidate = \trim( (string) $parts[1] );
+            if ( $version === 'v1' && $candidate !== '' && \hash_equals( $computed, $candidate ) )
             {
                 $matched = TRUE;
                 break;

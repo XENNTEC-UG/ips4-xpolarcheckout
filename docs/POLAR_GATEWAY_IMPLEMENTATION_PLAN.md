@@ -644,3 +644,122 @@ Known Phase 1 implementation posture:
 
 - Core gateway/webhook/replay/integrity files have been rewritten to Polar-oriented baselines.
 - Replay task currently remains a safe placeholder (no provider redelivery fetch yet) until Polar redelivery API workflow is finalized in subsequent phases.
+
+### 19.13 Phase 1 Verification & Phase 2 Blockers (Dev Review, 2026-02-22)
+
+Full code audit of every file in `app-source/` after Codex reported Phase 1 complete (19.12).
+
+**Verification result: Phase 1 is CONFIRMED COMPLETE.**
+
+- `rg -n -i "stripe" app-source` → zero matches (independently confirmed)
+- All PHP files read and reviewed: gateway, webhook, replay, integrity, forensics, hooks, extensions, lang, data JSON
+- All methods are Polar-oriented with correct API base URLs, endpoint paths, and event types
+
+**Phase 2 blockers and issues found during audit:**
+
+#### B1 — CRITICAL: Webhook signature verification is incorrect (`webhook.php` lines 498-541)
+
+The `checkSignature()` implementation does not match the Standard Webhooks spec that Polar uses. Four bugs:
+
+1. **Missing `msg_id` in signed payload** — Standard Webhooks signed content is `{msg_id}.{timestamp}.{body}`. Current code uses only `{timestamp}.{body}` (line 507). The `msg_id` comes from the `webhook-id` header, already extracted at line 191.
+2. **Secret not base64-decoded** — Standard Webhooks requires `base64_decode($secret)` before using as HMAC key. Current code passes `$secret` raw to `hash_hmac()` (line 508).
+3. **Hash output format wrong** — `hash_hmac('sha256', ...)` returns hex by default. Standard Webhooks signatures are `base64_encode(hash_hmac('sha256', ..., ..., true))` (raw binary output, then base64).
+4. **Token delimiter mismatch** — Standard Webhooks uses `v1,<base64sig>` (comma separator). Current parser at line 520-524 splits on `=`. Should split on `,` and match the `v1` version prefix.
+
+**Fix pattern:**
+```php
+$webhookId = isset($_SERVER['HTTP_WEBHOOK_ID']) ? (string) $_SERVER['HTTP_WEBHOOK_ID'] : '';
+$signedPayload = $webhookId . '.' . $timestamp . '.' . $body;
+$secretBytes = base64_decode($secret);
+$computed = base64_encode(hash_hmac('sha256', $signedPayload, $secretBytes, true));
+// Compare against v1,<sig> tokens split on comma
+```
+
+This will reject every real Polar webhook until fixed. Must be the FIRST fix in Phase 2.
+
+#### B2 — Stub methods needing real implementation in Phase 2
+
+| Method | File | Current State | Phase 2 Action |
+|---|---|---|---|
+| `syncWebhookEvents()` | `XPolarCheckout.php:398` | Returns static array, no API call | `PATCH /v1/webhooks/endpoints/{id}` with `events` body |
+| `testSettings()` | `XPolarCheckout.php:209` | Normalizes + generates webhook_url only | Add `POST /v1/webhooks/endpoints/` auto-provisioning |
+| `webhookReplay::execute()` | `webhookReplay.php:39` | Timestamp placeholder, no event fetch | Implement Polar webhook delivery list API |
+| `applyTaxReadinessSnapshotToSettings()` | `XPolarCheckout.php:412` | Passthrough stub | Remove entirely or repurpose for Polar MoR tax status |
+
+#### B3 — Dead lang keys (~40+ unused strings in `dev/lang.php`)
+
+Leftover from Stripe clone. No code references these keys:
+
+- Lines 10-11: `xpolarcheckout_secret` / `xpolarcheckout_publishable` — "Secret key"/"Publishable Key" (Polar uses Access Token)
+- Lines 14-21: Tax behavior settings (`xpolarcheckout_tax*`) — Stripe Tax was removed
+- Lines 29-39: Fraud Protection toggles (`dispute_ban`, `phone_collection_enabled`, `tos_consent_enabled`, `threeds_enabled`, `custom_checkout_text`) — Stripe chargeback suite features not in Polar
+- Lines 43-75: 30+ payment method names (`xpolarcheckout_methods_*`) — Stripe-specific methods
+- Lines 76-77: `xpolarcheckout_address_collection*` — Stripe Checkout feature
+- Lines 101-128: Tax readiness + tax ID collection labels (`xpolarcheckout_tax_readiness*`, `xpolarcheckout_tax_id*`)
+
+Not a runtime bug but adds confusion. Recommend pruning early in Phase 2.
+
+#### B4 — `auth()` ad-hoc pricing payload needs sandbox validation
+
+The `prices` object structure at `XPolarCheckout.php:77-83` uses this format:
+```php
+'prices' => array(
+    $defaultProductId => array(
+        'amount_type' => 'fixed',
+        'price_amount' => (int) $amountMinor,
+        'price_currency' => strtoupper($currency),
+    ),
+),
+```
+
+This must be tested against the real Polar sandbox `POST /v1/checkouts/` endpoint early in Phase 2 to confirm:
+- Ad-hoc prices work alongside `external_customer_id`
+- Metadata flows from checkout to order
+- Amount precision matches IPS invoice totals (cent-level)
+- Supported currencies list (add `checkValidity()` enforcement)
+
+#### Phase 0/1 checklist final status
+
+- [x] Namespace: `IPS\xpolarcheckout` (all files)
+- [x] Gateway class: `XPolarCheckout`
+- [x] Table prefix: `xpc_`
+- [x] Extension rename: `PolarPaymentSummary`
+- [x] Remove `code_loadJs.php` hook
+- [x] Remove Stripe Tax readiness logic (stubbed as passthrough)
+- [x] Remove dispute automation code paths (no dispute handlers in webhook)
+- [x] Gut `setup/upg_*` — single clean `upg_10000`
+- [x] Update `data/application.json`
+- [x] Update all `data/*.json` metadata files
+- [x] Remove Stripe API calls/references — zero matches
+- [x] Dependency strategy: `\IPS\Http`-only (confirmed)
+- [x] Clean `docs/` — removed Stripe automation scripts
+- [x] Remove release tar
+- [ ] Prune dead lang keys (deferred to Phase 2, B3 above)
+
+### 19.14 Phase 2 Progress — B1 Signature Fix Completed (Codex, 2026-02-22)
+
+Implemented the first Phase 2 blocker fix in `app-source/modules/front/webhook/webhook.php`.
+
+What changed:
+
+- Signature content now follows Standard Webhooks: `webhook-id.webhook-timestamp.raw-body`
+- HMAC key now uses decoded webhook secret bytes (supports `whsec_` prefix; falls back to raw secret for local CLI dev secrets)
+- Signature digest now uses base64 of raw HMAC bytes:
+  - `base64_encode(hash_hmac('sha256', $signedPayload, $secretBytes, true))`
+- Signature token parsing now expects Standard Webhooks token format:
+  - space-delimited tokens
+  - each token as `v1,<signature>`
+- Verification now requires both `webhook-id` and `webhook-timestamp` headers
+- Added replay-window guard (`±300s`) with forensics reason `timestamp_too_old`
+
+Validation:
+
+- Docker PHP lint: `app-source/modules/front/webhook/webhook.php` parse clean
+- Docker PHP lint: full `app-source` parse clean
+- Stripe scan still clean: `rg -n -i "stripe" app-source` -> no matches
+
+Remaining Phase 2 blockers:
+
+- B2: implement webhook endpoint sync/provision and replay API calls
+- B3: prune dead lang keys
+- B4: sandbox-validate ad-hoc checkout price payload and currency handling
