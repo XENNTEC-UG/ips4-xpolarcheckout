@@ -10,7 +10,7 @@ if ( !\defined( '\IPS\SUITE_UNIQUE_KEY' ) )
 }
 
 /**
- * ACP Notification: Stripe Payment Integrity Alerts
+ * ACP Notification: Polar Payment Integrity Alerts
  */
 class _PaymentIntegrity extends \IPS\core\AdminNotification
 {
@@ -66,7 +66,7 @@ class _PaymentIntegrity extends \IPS\core\AdminNotification
 			\IPS\core\AdminNotification::remove( 'xpolarcheckout', 'PaymentIntegrity', 'replay_stale' );
 		}
 
-		/* Stripe-vs-IPS mismatches in last 30 days */
+		/* Provider-vs-IPS mismatches in last 30 days */
 		if ( (int) $stats['mismatch_count_30d'] > 0 )
 		{
 			\IPS\core\AdminNotification::send( 'xpolarcheckout', 'PaymentIntegrity', 'mismatches', TRUE );
@@ -76,8 +76,8 @@ class _PaymentIntegrity extends \IPS\core\AdminNotification
 			\IPS\core\AdminNotification::remove( 'xpolarcheckout', 'PaymentIntegrity', 'mismatches' );
 		}
 
-		/* Endpoint drift is not checked here — fetchWebhookEndpoint() requires
-		   a Stripe API call which is too heavy for a 5-minute polling task.
+		/* Endpoint drift is not checked here - fetchWebhookEndpoint() requires
+		   a provider API call which is too heavy for a 5-minute polling task.
 		   Drift is visible on the integrity panel instead. */
 
 		/* Tax readiness alerts are disabled during Polar Phase 0 migration */

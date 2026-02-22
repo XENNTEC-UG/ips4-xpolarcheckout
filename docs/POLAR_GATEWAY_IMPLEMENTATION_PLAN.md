@@ -580,3 +580,67 @@ Cross-check completed on February 22, 2026:
 - Issue `#1` and Section 19 are aligned on rename/migration blockers.
 - Table prefix decision is now locked to `xpc_` in this plan.
 - Dependency discussion is corrected to reflect the actual Stripe baseline (`\IPS\Http` direct API, no Stripe SDK/Composer dependency).
+
+### 19.11 Phase 1 Audit (Dev Review, 2026-02-22)
+
+Full source audit after Codex reported Phase 1 complete. Result: **Phase 0 is complete, Phase 1 is not.**
+
+**303 Stripe references found across 11 files.** The entire functional codebase is still pure Stripe.
+
+Detailed findings posted to GitHub issue #1 comment. Summary:
+
+**Must REMOVE (plan says Drop/De-scope):**
+
+- Stripe Tax readiness (`XPolarCheckout.php` lines 945-1107): `fetchTaxReadiness()`, `normalizeTaxReadiness()`, `applyTaxReadinessSnapshotToSettings()`
+- Dispute automation (`webhook.php` `charge.dispute.*` handlers + evidence push)
+- Legacy Stripe migration (`loadLegacyStripeCheckoutSettings()`, `applyLegacySettingDefaults()`, `buildSettingsWithLegacyDefaults()`)
+- Stripe.js redirect (`XPolarCheckout.php` line 208)
+- `STRIPE_VERSION` constant and all `Stripe-Version` / `Stripe-Signature` header references
+
+**Must REWRITE to Polar (or stub with TODO markers):**
+
+- `auth()` — Polar checkout session creation via `\IPS\Http\Url` to `api.polar.sh/v1/checkouts/`
+- Webhook signature verification — Standard Webhooks headers (`webhook-id`, `webhook-signature`, `webhook-timestamp`)
+- Webhook event handlers — Replace `checkout.session.*` / `charge.*` with `order.created`, `order.paid`, `order.refunded`, `refund.updated`, `checkout.updated`
+- `refund()` — Polar `POST /v1/refunds/` with `order_id`
+- `testSettings()` webhook provisioning — Polar `POST /v1/webhooks/endpoints/`
+- `getCustomer()` — Adapt to Polar `external_customer_id`
+- Replay task — Replace Stripe `/v1/events` with Polar webhook delivery API
+- Settings form — Replace Stripe keys with Polar settings (access_token, environment, default_product_id)
+- `dev/lang.php` — All 42 Stripe-referencing lang keys and values
+
+**Can KEEP as-is (provider-agnostic):**
+
+- MySQL `GET_LOCK`/`RELEASE_LOCK` concurrency protection
+- Forensics table write pattern (`xpc_webhook_forensics`)
+- Idempotency via transaction `extra` key map
+- `checkFraudRulesAndCapture()` IPS-side logic
+- ACP forensics viewer module
+- `code_GatewayModel.php` (already clean)
+- `couponNameHook.php` (already clean)
+- `code_memberProfileTab.php` (already clean)
+
+**Phase 1 done = parse-clean:** zero Stripe references, all methods rewritten or stubbed, lang keys updated, app installs and gateway appears in ACP.
+
+### 19.12 Phase 1 Completion Pass (Codex, 2026-02-22)
+
+Recheck performed against the latest `#1` issue comments and the19.11 audit.
+
+Status update:
+
+- `app-source` is now parse-clean with zero Stripe references.
+- Stripe-specific comments/docblocks were normalized to Polar/provider wording.
+- Language assets were updated to Polar/provider wording:
+  - `app-source/dev/lang.php`
+  - `app-source/data/lang.xml`
+
+Validation evidence:
+
+- `rg -n -i "stripe" app-source` -> no matches
+- `rg -n -i "api\\.stripe|stripe-signature|stripe-version|STRIPE_VERSION" app-source` -> no matches
+- Docker PHP lint pass for touched files and a full `app-source` parse check in container.
+
+Known Phase 1 implementation posture:
+
+- Core gateway/webhook/replay/integrity files have been rewritten to Polar-oriented baselines.
+- Replay task currently remains a safe placeholder (no provider redelivery fetch yet) until Polar redelivery API workflow is finalized in subsequent phases.

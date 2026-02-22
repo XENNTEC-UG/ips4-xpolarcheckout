@@ -64,12 +64,12 @@
   <word key="xpolarcheckout_address_collection_desc" js="0">Specify whether Checkout should collect the customer’s billing address.</word>
   <word key="module__xpolarcheckout_monitoring" js="0">Monitoring</word>
   <word key="xpolarcheckout_integrity_title" js="0">Polar Checkout Integrity</word>
-  <word key="xpolarcheckout_integrity_intro" js="0">Operational visibility panel for Stripe webhook health, replay status, and Stripe-vs-IPS settlement mismatches.</word>
+  <word key="xpolarcheckout_integrity_intro" js="0">Operational visibility panel for Polar webhook health, replay status, and provider-vs-IPS settlement mismatches.</word>
   <word key="xpolarcheckout_integrity_replay_now" js="0">Run Webhook Replay Now</word>
   <word key="xpolarcheckout_integrity_replay_success" js="0">Webhook replay executed successfully.</word>
   <word key="xpolarcheckout_integrity_replay_no_events" js="0">Webhook replay executed and found no replayable events.</word>
   <word key="xpolarcheckout_integrity_replay_failed" js="0">Webhook replay execution failed. Check logs for details.</word>
-  <word key="acplogs__xpolarcheckout_integrity_replay" js="0">Ran Stripe webhook replay from integrity panel</word>
+  <word key="acplogs__xpolarcheckout_integrity_replay" js="0">Ran Polar webhook replay from integrity panel</word>
   <word key="integrity_view" js="0">View integrity panel</word>
  </app>
 </language>

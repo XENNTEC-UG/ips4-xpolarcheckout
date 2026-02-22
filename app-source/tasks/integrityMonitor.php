@@ -1,6 +1,6 @@
 <?php
 /**
- * @brief		Stripe Checkout Integrity Monitor task
+ * @brief		Polar Checkout Integrity Monitor task
  * @author		<a href='https://xenntec.com/'>XENNTEC UG</a>
  * @copyright	(c) 2026 XENNTEC UG
  * @package		Invision Community
