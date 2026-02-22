@@ -338,6 +338,8 @@ Rollback:
 
 - Checkout payload compatibility hardening:
   - `price_currency` switched to lowercase enum format in checkout payload.
+- Checkout payload shape fix:
+  - `prices[product_id]` now sent as an array of price objects (required by Polar API request schema).
 - Amount precision hardening:
   - replaced fixed-2-decimal minor-unit math with IPS currency-decimal aware conversion (`numberOfDecimalsForCurrency` + `Math\Number`).
 - File changed:
@@ -345,6 +347,32 @@ Rollback:
 - Validation:
   - `php -l` passed on gateway source.
   - full `app-source` lint pass in container passed.
+  - sandbox API validation:
+    - `POST /v1/checkouts/` accepts payload and returns hosted checkout URL.
+    - `POST /v1/refunds/` accepts payload schema; unknown order id returns provider `Order not found` (expected without paid-order fixture).
+
+### 2026-02-22 - Phase 2 B4 Completed
+
+- Replaced placeholder replay task with production replay pipeline:
+  - pulls failed deliveries from Polar `/v1/webhooks/deliveries` with pagination.
+  - filters to `REQUIRED_WEBHOOK_EVENTS` and deduplicates by webhook event id.
+  - dry-run mode returns structured replay candidate list without state mutation.
+  - live mode re-forwards payloads to local webhook endpoint with Standard Webhooks headers/signature.
+  - stores replay cursor state in datastore (`last_run_at`, `last_event_created`, `last_event_id`, `last_replayed_count`).
+- Guardrails implemented:
+  - lookback window, overlap, max events, max pages, max runtime.
+- Additional integration updates:
+  - replay settings fields added to gateway settings (`replay_lookback`, `replay_overlap`, `replay_max_events`).
+  - integrity panel clamp aligned to max 100 events and environment badge rendered from settings.
+- Files changed:
+  - `app-source/tasks/webhookReplay.php`
+  - `app-source/sources/XPolarCheckout/XPolarCheckout.php`
+  - `app-source/modules/admin/monitoring/integrity.php`
+- Validation:
+  - `php -l` passed on touched files.
+  - full `app-source` lint pass passed in container.
+  - runtime dry-run execution returns structured result.
+  - runtime live execution updates replay cursor state without exceptions.
 
 ### 2026-02-22 - Polar CLI Docker Service (Infrastructure)
 
@@ -364,8 +392,26 @@ Rollback:
 - Files modified: `compose.yaml`, `.env.example`, `AI_TOOLS.md`, `docs/POLAR_CLI_LOCAL_DEBUG.md`.
 - Verified: SSE connects, events forward (`organization.updated` -> 200), DB sync works, all 4 settings land in `nexus_paymethods.m_settings`.
 
+### 2026-02-22 - Settlement Snapshot Normalization
+
+- Upgraded `persistPolarSnapshot()` from lightweight event logging to normalized settlement schema persistence.
+- Snapshot now includes provider/IPS total comparison fields used by integrity mismatch reporting:
+  - `amount_total_display`
+  - `ips_invoice_total_display`
+  - `total_difference_display`
+  - `has_total_mismatch`
+  - `total_mismatch_display`
+- Added subtotal/tax/refund display keys when provider payload includes amount data.
+- Added URL normalization for optional invoice/receipt links before snapshot persistence.
+- Added snapshot write failure logging to `xpolarcheckout_snapshot`.
+- Validation:
+  - import sync executed (`scripts/ips-dev-sync.ps1 -Mode import`)
+  - runtime lint in container passed for touched files (`php -l`).
+  - IPS runtime probe passed for mismatch comparison logic (`applyIpsInvoiceTotalComparison` exact/tax-explained/mismatch scenarios).
+
 ### Remaining Phase 2 Work
 
-- **B1 CRITICAL**: Webhook signature verification has 4 bugs (see prior audit). The `checkSignature()` method needs to use Standard Webhooks format: `msg_id.timestamp.body` signed with base64-decoded secret, output as base64. Must fix before end-to-end payment testing works.
-- B3: checkout/refund provider-path sandbox validation and payload hardening.
-- B4: replay pipeline rewrite from placeholder to Polar delivery/event API workflow.
+- B3: complete end-to-end paid checkout + successful refund validation with a real sandbox paid order (`gw_id`).
+- ACP click-through verification (gateway save flow + integrity panel actions).
+- Complete forensic-table verification on upgraded local install (`xpc_webhook_forensics` presence + insert checks).
+- Full `docs/TEST_RUNTIME.md` smoke matrix execution.

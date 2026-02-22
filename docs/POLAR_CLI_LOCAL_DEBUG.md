@@ -15,7 +15,7 @@ Forward Polar webhook events to the local IPS4 `xpolarcheckout` webhook endpoint
 
 ## Option A: Docker service (recommended)
 
-Mirrors the existing `stripe-cli` pattern. The `polar-cli` Docker service connects to Polar's SSE endpoint, forwards webhook events to the local IPS webhook URL, and auto-syncs the session signing secret to the database.
+Uses the same local-listener pattern as other gateway debug services in this stack. The `polar-cli` Docker service connects to Polar's SSE endpoint, forwards webhook events to the local IPS webhook URL, and auto-syncs the session signing secret to the database.
 
 ### Prerequisites
 
@@ -35,7 +35,7 @@ POLAR_ORG_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 2. Add `polar` to your compose profiles in `.env`:
 
 ```bash
-COMPOSE_PROFILES=http,stripe,polar,xunicore-mock,cron
+COMPOSE_PROFILES=http,polar,xunicore-mock,cron
 ```
 
 3. Build and start:
@@ -55,7 +55,7 @@ You should see:
 
 ```
   Connected  (org: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
-  Secret     whsec_xxxxxxxxxx
+  Secret     xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
   Forwarding http://host.docker.internal/index.php?app=xpolarcheckout&module=webhook&controller=webhook
 
   Waiting for events...
@@ -75,7 +75,7 @@ The webhook secret is automatically synced to the `XPolarCheckout` gateway in th
 ### How it works
 
 - Connects via Server-Sent Events (SSE) to `https://sandbox-api.polar.sh/v1/cli/listen/{org_id}`
-- Receives an ephemeral webhook signing secret (`whsec_*`) on connection
+- Receives an ephemeral webhook signing secret as plain hex on connection
 - Auto-syncs the secret to `nexus_paymethods` via `docker exec` on the db container
 - Forwards each webhook event to the local URL with Standard Webhooks headers (`webhook-id`, `webhook-timestamp`, `webhook-signature`)
 - Reconnects automatically if the SSE connection drops

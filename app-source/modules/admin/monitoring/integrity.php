@@ -84,6 +84,15 @@ class _integrity extends \IPS\Dispatcher\Controller
             . '<div class="xpc-card-sub">URL + secret</div>'
             . '</div>';
 
+        $environment = ( isset( $stats['gateway_environment'] ) && $stats['gateway_environment'] === 'production' ) ? 'production' : 'sandbox';
+        $environmentClass = ( $environment === 'production' ) ? 'xpc-card--warn' : 'xpc-card--ok';
+        $environmentTagClass = ( $environment === 'production' ) ? 'xpc-tag--warn' : 'xpc-tag--ok';
+        $h .= '<div class="xpc-card ' . $environmentClass . '">'
+            . '<div class="xpc-card-label">Environment</div>'
+            . '<div class="xpc-card-value"><span class="xpc-tag ' . $environmentTagClass . '">' . $this->escape( \mb_strtoupper( $environment ) ) . '</span></div>'
+            . '<div class="xpc-card-sub">Gateway settings mode</div>'
+            . '</div>';
+
         $replayHealthy = (bool) $stats['replay_recent_run'];
         $h .= '<div class="xpc-card ' . ( $replayHealthy ? 'xpc-card--ok' : 'xpc-card--warn' ) . '">'
             . '<div class="xpc-card-label">Replay Task</div>'
@@ -216,6 +225,7 @@ class _integrity extends \IPS\Dispatcher\Controller
     {
         $stats = array(
             'gateway_webhook_configured' => FALSE,
+            'gateway_environment' => 'sandbox',
             'replay_last_run_at' => NULL,
             'replay_last_event_created' => NULL,
             'replay_last_replayed_count' => 0,
@@ -238,6 +248,10 @@ class _integrity extends \IPS\Dispatcher\Controller
         if ( \is_array( $gatewaySettings ) )
         {
             $stats['gateway_webhook_configured'] = !empty( $gatewaySettings['webhook_url'] ) && !empty( $gatewaySettings['webhook_secret'] );
+            if ( isset( $gatewaySettings['environment'] ) && \is_string( $gatewaySettings['environment'] ) )
+            {
+                $stats['gateway_environment'] = ( $gatewaySettings['environment'] === 'production' ) ? 'production' : 'sandbox';
+            }
 
             if ( isset( $gatewaySettings['replay_lookback'] ) )
             {
@@ -249,7 +263,7 @@ class _integrity extends \IPS\Dispatcher\Controller
             }
             if ( isset( $gatewaySettings['replay_max_events'] ) )
             {
-                $stats['replay_config_max_events'] = \max( 10, \min( 500, (int) $gatewaySettings['replay_max_events'] ) );
+                $stats['replay_config_max_events'] = \max( 10, \min( 100, (int) $gatewaySettings['replay_max_events'] ) );
             }
 
             $endpoint = \IPS\xpolarcheckout\XPolarCheckout::fetchWebhookEndpoint( $gatewaySettings );

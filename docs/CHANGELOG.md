@@ -26,6 +26,26 @@
 - Added Phase 2 B3 payload hardening in `app-source/sources/XPolarCheckout/XPolarCheckout.php`:
   - `price_currency` now uses lowercase ISO format expected by Polar API enums.
   - `moneyToMinorUnit()` now uses IPS currency decimal precision via `\IPS\nexus\Money::numberOfDecimalsForCurrency()` + `\IPS\Math\Number` (no fixed 2-decimal assumption).
+- Completed B3 checkout payload compatibility fix and sandbox validation:
+  - fixed checkout payload shape to `prices[product_id] = [ { ...price override... } ]` (list format required by Polar API).
+  - validated `POST /v1/checkouts/` returns `open` checkout with hosted URL in sandbox.
+  - validated refund request schema against sandbox (`POST /v1/refunds/`) with expected provider-side `Order not found` for unknown order id.
+- Completed B4 replay pipeline rewrite in `app-source/tasks/webhookReplay.php`:
+  - replaces placeholder state-touch task with real replay source from Polar `/v1/webhooks/deliveries`.
+  - filters + dedupes candidates by `REQUIRED_WEBHOOK_EVENTS` and webhook event id.
+  - replays payloads through local webhook controller with Standard Webhooks headers/signature.
+  - supports dry-run output and persisted replay cursor (`last_run_at`, `last_event_created`, `last_event_id`, `last_replayed_count`).
+  - runtime guardrails: lookback, overlap, max events, max pages, max runtime.
+  - runtime live execution verified: non-dry run updates replay state without exceptions when no replayable events are present.
+- Added replay guardrail settings to gateway config:
+  - `replay_lookback`, `replay_overlap`, `replay_max_events` with clamped bounds in `testSettings()`.
+- Integrity panel now renders explicit environment badge (`SANDBOX` / `PRODUCTION`) from gateway settings.
+- Normalized settlement snapshot schema in webhook persistence (`app-source/modules/front/webhook/webhook.php`):
+  - added display keys for provider and IPS totals (`amount_total_display`, `ips_invoice_total_display`).
+  - added comparison/mismatch keys (`total_difference_display`, `has_total_mismatch`, `total_mismatch_display`).
+  - added subtotal/tax/refund display fields when provider payload includes values.
+  - improved snapshot error observability by logging invoice status-extra write failures to `xpolarcheckout_snapshot`.
+  - verified comparison behavior in IPS runtime (`applyIpsInvoiceTotalComparison`): exact match, tax-explained difference, and mismatch paths.
 
 ## 2026-02-21 - Baseline Hardening
 

@@ -5,9 +5,11 @@
 `xpolarcheckout` is installed as an IPS4 app and is in active provider migration.
 
 - App install and gateway registration recovery shipped in `v1.0.1` (`10001`).
-- Gateway shell, webhook controller, integrity panel, and replay task scaffolding are in place.
+- Gateway, webhook controller, integrity panel, and replay pipeline are implemented.
 - Standard Webhooks signature validation hardening is implemented.
-- Full Polar checkout, refund, and replay provider calls are still in progress.
+- Polar checkout/refund provider calls are implemented with sandbox payload validation completed.
+- Settlement snapshot normalization for integrity/reporting is implemented.
+- Remaining work is end-to-end paid/refund runtime validation and ACP click-through verification.
 - Local webhook forwarding via `polar-cli` Docker service is operational (SSE tunnel, auto-syncs all gateway settings from `.env`).
 
 ## Source Paths

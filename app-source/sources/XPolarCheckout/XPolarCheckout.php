@@ -76,9 +76,11 @@ class _XPolarCheckout extends \IPS\nexus\Gateway
             ),
             'prices' => array(
                 $defaultProductId => array(
-                    'amount_type' => 'fixed',
-                    'price_amount' => (int) $amountMinor,
-                    'price_currency' => \mb_strtolower( (string) $transaction->amount->currency ),
+                    array(
+                        'amount_type' => 'fixed',
+                        'price_amount' => (int) $amountMinor,
+                        'price_currency' => \mb_strtolower( (string) $transaction->amount->currency ),
+                    ),
                 ),
             ),
         );
@@ -191,6 +193,18 @@ class _XPolarCheckout extends \IPS\nexus\Gateway
         $form->add( new \IPS\Helpers\Form\Text( 'xpolarcheckout_access_token', isset( $current['access_token'] ) ? $current['access_token'] : '', FALSE ) );
         $form->add( new \IPS\Helpers\Form\Text( 'xpolarcheckout_default_product_id', isset( $current['default_product_id'] ) ? $current['default_product_id'] : '', FALSE ) );
         $form->add( new \IPS\Helpers\Form\Text( 'xpolarcheckout_webhook_secret', isset( $current['webhook_secret'] ) ? $current['webhook_secret'] : '', FALSE ) );
+        $form->add( new \IPS\Helpers\Form\Number( 'xpolarcheckout_replay_lookback', isset( $current['replay_lookback'] ) ? (int) $current['replay_lookback'] : 3600, FALSE, array(
+            'min' => 300,
+            'max' => 86400,
+        ) ) );
+        $form->add( new \IPS\Helpers\Form\Number( 'xpolarcheckout_replay_overlap', isset( $current['replay_overlap'] ) ? (int) $current['replay_overlap'] : 300, FALSE, array(
+            'min' => 60,
+            'max' => 1800,
+        ) ) );
+        $form->add( new \IPS\Helpers\Form\Number( 'xpolarcheckout_replay_max_events', isset( $current['replay_max_events'] ) ? (int) $current['replay_max_events'] : 100, FALSE, array(
+            'min' => 10,
+            'max' => 100,
+        ) ) );
 
         if ( isset( $current['webhook_url'] ) && $current['webhook_url'] !== '' )
         {
@@ -217,6 +231,9 @@ class _XPolarCheckout extends \IPS\nexus\Gateway
         $settings['access_token'] = isset( $settings['access_token'] ) ? \trim( (string) $settings['access_token'] ) : '';
         $settings['default_product_id'] = isset( $settings['default_product_id'] ) ? \trim( (string) $settings['default_product_id'] ) : '';
         $settings['webhook_secret'] = isset( $settings['webhook_secret'] ) ? \trim( (string) $settings['webhook_secret'] ) : '';
+        $settings['replay_lookback'] = isset( $settings['replay_lookback'] ) ? \max( 300, \min( 86400, (int) $settings['replay_lookback'] ) ) : 3600;
+        $settings['replay_overlap'] = isset( $settings['replay_overlap'] ) ? \max( 60, \min( 1800, (int) $settings['replay_overlap'] ) ) : 300;
+        $settings['replay_max_events'] = isset( $settings['replay_max_events'] ) ? \max( 10, \min( 100, (int) $settings['replay_max_events'] ) ) : 100;
 
         if ( $settings['access_token'] === '' || $settings['default_product_id'] === '' )
         {

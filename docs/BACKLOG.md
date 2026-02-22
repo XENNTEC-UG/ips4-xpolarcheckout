@@ -13,14 +13,12 @@ This file tracks current implementation tasks. Canonical remote tracking remains
 
 ## Phase 2 Blockers
 
-- [ ] **B1 CRITICAL: Webhook signature verification bugs**
-  - `checkSignature()` in `webhook.php` has 4 bugs from the Stripe-to-Polar migration:
-    1. Missing `msg_id` in signed payload (Standard Webhooks format: `msg_id.timestamp.body`)
-    2. Secret not base64-decoded before HMAC
-    3. Hash output in hex instead of base64
-    4. Wrong delimiter (comma instead of space) in signed content
-  - Must fix before any end-to-end payment testing will pass.
-  - Note: SSE tunnel secret is plain hex, not `whsec_` prefixed — handle both formats.
+- [x] **B1: Standard Webhooks signature verification**
+  - `checkSignature()` now uses signed payload format `webhook-id.webhook-timestamp.raw-body`.
+  - Supports both `whsec_` prefixed secrets and raw SSE tunnel secret format.
+  - Uses base64 HMAC (`hash_hmac(..., TRUE)` + `base64_encode`) and `v1,<signature>` token parsing.
+  - Enforces timestamp skew guard and forensic logging on invalid attempts.
+  - File: `app-source/modules/front/webhook/webhook.php`.
 
 - [x] **B2: Event map completion**
   - Implemented full webhook transition handlers for `order.created`, `order.paid`, `order.updated`, `order.refunded`, `checkout.updated`, and `refund.updated`.
@@ -31,28 +29,51 @@ This file tracks current implementation tasks. Canonical remote tracking remains
 - [ ] **B3: Checkout + refund provider paths**
   - Finish checkout session creation payload and redirect handoff.
   - Implement `refund()` using Polar refund API and map outcomes to IPS statuses.
-  - In progress: amount conversion now uses currency decimals and checkout `price_currency` now uses lowercase enum style for Polar API compatibility.
+  - In progress:
+    - amount conversion now uses currency decimals and checkout `price_currency` uses lowercase enum style.
+    - checkout payload fixed to Polar `prices[product_id]` list format and validated against sandbox API (`POST /v1/checkouts/` returns open checkout + URL).
+    - refund payload schema validated against sandbox API (`POST /v1/refunds/` accepted fields, returns `Order not found` for unknown order id).
+  - Remaining: execute full paid-order refund success test using a real sandbox paid order id (`gw_id`).
 
-- [ ] **B4: Replay pipeline rewrite**
-  - Replace current replay source with Polar delivery/event retrieval.
-  - Keep runtime guardrails (lookback, overlap, max events, max runtime).
+- [x] **B4: Replay pipeline rewrite**
+  - Replaced placeholder task with Polar webhook delivery replay pipeline using `/v1/webhooks/deliveries`.
+  - Filters by `REQUIRED_WEBHOOK_EVENTS`, dedupes by webhook event id, supports dry-run mode, and preserves replay cursor state.
+  - Re-forwards payloads to local webhook endpoint with Standard Webhooks headers/signature generation.
+  - Runtime guardrails implemented: lookback, overlap, max events per run, max pages, max runtime.
+  - Files: `app-source/tasks/webhookReplay.php`, `app-source/sources/XPolarCheckout/XPolarCheckout.php`, `app-source/modules/admin/monitoring/integrity.php`.
 
 ## Integration Tasks
 
 - [x] Gateway settings auto-configured from `.env` via polar-cli Docker service (no ACP needed for dev).
 - [ ] Validate gateway appears and saves correctly in ACP payment methods.
-- [ ] Normalize settlement snapshot keys for customer and print hook output.
+  - Runtime check confirms gateway class resolves with expected settings from DB; ACP click-through verification still pending.
+- [x] Normalize settlement snapshot keys for customer and print hook output.
+  - `xpolarcheckout_snapshot` now persists normalized total/tax/subtotal/refund display fields and IPS comparison keys:
+    - `amount_total_display`
+    - `ips_invoice_total_display`
+    - `total_difference_display`
+    - `has_total_mismatch`
+    - `total_mismatch_display`
+  - File: `app-source/modules/front/webhook/webhook.php`.
 
 ## Testing Tasks
 
 - [x] Local CLI webhook forwarding verified (polar-cli Docker service, events forward with 200).
-- [ ] Signature-validation smoke test (blocked on B1 fix).
+- [ ] Signature-validation smoke test.
+  - HTTP response checks passed against live endpoint:
+    - missing signature -> `403 MISSING_SIGNATURE`
+    - invalid signature -> `403 INVALID_SIGNATURE`
+    - stale timestamp -> `403 INVALID_SIGNATURE`
+  - Remaining: verify forensic row persistence in `xpc_webhook_forensics` on this local install.
 - [ ] Manual paid checkout test in Nexus sandbox.
 - [ ] Manual partial and full refund verification.
-- [ ] Replay dry-run and live replay validation in ACP integrity panel.
+- [x] Replay dry-run validation (task executes and returns structured result).
+- [ ] Replay live validation in ACP integrity panel.
+- [x] Snapshot normalization lint validation in container runtime (`php -l` on touched files).
+- [x] Snapshot comparison runtime probe passed (`applyIpsInvoiceTotalComparison` behavior verified in IPS runtime).
 
 ## Documentation Tasks
 
-- [ ] Keep `POLAR_GATEWAY_IMPLEMENTATION_PLAN.md` aligned with shipped changes.
-- [ ] Add dated changelog entries for each merged milestone.
-- [ ] Mirror important milestone updates into GitHub issue `#1` comments.
+- [x] Keep `POLAR_GATEWAY_IMPLEMENTATION_PLAN.md` aligned with shipped changes.
+- [x] Add dated changelog entries for each merged milestone.
+- [x] Mirror important milestone updates into GitHub issue `#1` comments.

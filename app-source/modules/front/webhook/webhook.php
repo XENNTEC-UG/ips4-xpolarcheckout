@@ -635,16 +635,11 @@ class _webhook extends \IPS\Dispatcher\Controller
      */
     protected function extractTotalAmountMinor( array $eventObject )
     {
-        $keys = array( 'total_amount', 'amount_total' );
-        foreach ( $keys as $key )
-        {
-            if ( isset( $eventObject[ $key ] ) && \is_numeric( $eventObject[ $key ] ) )
-            {
-                return (int) $eventObject[ $key ];
-            }
-        }
-
-        return NULL;
+        return $this->extractMinorUnitByKeys( $eventObject, array(
+            'total_amount',
+            'amount_total',
+            'amount',
+        ) );
     }
 
     /**
@@ -655,19 +650,70 @@ class _webhook extends \IPS\Dispatcher\Controller
      */
     protected function extractRefundedAmountMinor( array $eventObject )
     {
-        $keys = array( 'refunded_amount', 'amount_refunded' );
-        foreach ( $keys as $key )
+        $refundedAmount = $this->extractMinorUnitByKeys( $eventObject, array(
+            'refunded_amount',
+            'amount_refunded',
+        ) );
+        if ( $refundedAmount !== NULL )
         {
-            if ( isset( $eventObject[ $key ] ) && \is_numeric( $eventObject[ $key ] ) )
-            {
-                return (int) $eventObject[ $key ];
-            }
+            return $refundedAmount;
         }
 
         if ( isset( $eventObject['status'] ) && \mb_strtolower( (string) $eventObject['status'] ) === 'succeeded'
             && isset( $eventObject['amount'] ) && \is_numeric( $eventObject['amount'] ) )
         {
             return (int) $eventObject['amount'];
+        }
+
+        return NULL;
+    }
+
+    /**
+     * Extract tax amount (minor units) from event payload object.
+     *
+     * @param array $eventObject
+     * @return int|NULL
+     */
+    protected function extractTaxAmountMinor( array $eventObject )
+    {
+        return $this->extractMinorUnitByKeys( $eventObject, array(
+            'tax_amount',
+            'amount_tax',
+            'total_tax_amount',
+            'tax',
+        ) );
+    }
+
+    /**
+     * Extract subtotal amount (minor units) from event payload object.
+     *
+     * @param array $eventObject
+     * @return int|NULL
+     */
+    protected function extractSubtotalAmountMinor( array $eventObject )
+    {
+        return $this->extractMinorUnitByKeys( $eventObject, array(
+            'subtotal_amount',
+            'amount_subtotal',
+            'sub_total_amount',
+        ) );
+    }
+
+    /**
+     * Extract numeric minor-unit amount from an ordered key list.
+     *
+     * @param array $eventObject
+     * @param array $keys
+     * @return int|NULL
+     */
+    protected function extractMinorUnitByKeys( array $eventObject, array $keys )
+    {
+        foreach ( $keys as $key )
+        {
+            if ( isset( $eventObject[ $key ] ) && \is_numeric( $eventObject[ $key ] ) )
+            {
+                return (int) $eventObject[ $key ];
+            }
         }
 
         return NULL;
@@ -730,20 +776,13 @@ class _webhook extends \IPS\Dispatcher\Controller
     protected function persistPolarSnapshot( \IPS\nexus\Transaction $transaction, array $eventPayload, $eventType )
     {
         $eventObject = $this->getEventObject( $eventPayload );
-        $snapshotOrderId = $this->extractOrderId( $eventObject, \strpos( (string) $eventType, 'order.' ) === 0 );
-
-        $snapshot = array(
-            'event_type' => (string) $eventType,
-            'event_id' => $this->extractWebhookEventId( $eventPayload ),
-            'provider_status' => isset( $eventObject['status'] ) ? (string) $eventObject['status'] : NULL,
-            'order_id' => $snapshotOrderId,
-            'currency' => isset( $eventObject['currency'] ) ? (string) $eventObject['currency'] : NULL,
-            'amount_total_minor' => $this->extractTotalAmountMinor( $eventObject ),
-            'amount_refunded_minor' => $this->extractRefundedAmountMinor( $eventObject ),
-            'captured_at_iso' => \gmdate( 'Y-m-d H:i:s' ) . ' UTC',
-        );
+        $snapshot = $this->buildPolarSnapshot( $transaction, $eventPayload, $eventObject, $eventType );
 
         $extra = $transaction->extra;
+        if ( !\is_array( $extra ) )
+        {
+            $extra = array();
+        }
         $extra['xpolarcheckout_snapshot'] = $snapshot;
         $transaction->extra = $extra;
         $transaction->save();
@@ -756,7 +795,228 @@ class _webhook extends \IPS\Dispatcher\Controller
             $invoice->status_extra = $statusExtra;
             $invoice->save();
         }
-        catch ( \Throwable $e ) {}
+        catch ( \Throwable $e )
+        {
+            \IPS\Log::log( $e, 'xpolarcheckout_snapshot' );
+        }
+    }
+
+    /**
+     * Build normalized Polar settlement snapshot used by transaction/invoice displays.
+     *
+     * @param \IPS\nexus\Transaction $transaction
+     * @param array                  $eventPayload
+     * @param array                  $eventObject
+     * @param string                 $eventType
+     * @return array
+     */
+    protected function buildPolarSnapshot( \IPS\nexus\Transaction $transaction, array $eventPayload, array $eventObject, $eventType )
+    {
+        $eventTypeValue = (string) $eventType;
+        $orderId = $this->extractOrderId( $eventObject, \strpos( $eventTypeValue, 'order.' ) === 0 );
+        if ( !$orderId && !empty( $transaction->gw_id ) )
+        {
+            $orderId = (string) $transaction->gw_id;
+        }
+
+        $checkoutId = NULL;
+        if ( isset( $eventObject['checkout_id'] ) && \is_scalar( $eventObject['checkout_id'] ) && (string) $eventObject['checkout_id'] !== '' )
+        {
+            $checkoutId = (string) $eventObject['checkout_id'];
+        }
+        elseif ( \strpos( $eventTypeValue, 'checkout.' ) === 0 && isset( $eventObject['id'] ) && \is_scalar( $eventObject['id'] ) && (string) $eventObject['id'] !== '' )
+        {
+            $checkoutId = (string) $eventObject['id'];
+        }
+
+        $currency = NULL;
+        if ( isset( $eventObject['currency'] ) && \is_scalar( $eventObject['currency'] ) && (string) $eventObject['currency'] !== '' )
+        {
+            $currency = \mb_strtoupper( (string) $eventObject['currency'] );
+        }
+        elseif ( $transaction->amount instanceof \IPS\nexus\Money )
+        {
+            $currency = \mb_strtoupper( (string) $transaction->amount->currency );
+        }
+
+        $amountTotalMinor = $this->extractTotalAmountMinor( $eventObject );
+        if ( $amountTotalMinor === NULL )
+        {
+            $amountTotalMinor = $this->transactionAmountMinorUnit( $transaction );
+        }
+
+        $amountTaxMinor = $this->extractTaxAmountMinor( $eventObject );
+        $amountSubtotalMinor = $this->extractSubtotalAmountMinor( $eventObject );
+        if ( $amountSubtotalMinor === NULL && $amountTotalMinor !== NULL && $amountTaxMinor !== NULL )
+        {
+            $amountSubtotalMinor = $amountTotalMinor - $amountTaxMinor;
+        }
+        $amountRefundedMinor = $this->extractRefundedAmountMinor( $eventObject );
+
+        $snapshot = array(
+            'captured_at' => \time(),
+            'captured_at_iso' => \gmdate( 'Y-m-d H:i:s' ) . ' UTC',
+            'event_id' => $this->extractWebhookEventId( $eventPayload ),
+            'event_type' => $eventTypeValue,
+            'provider_status' => isset( $eventObject['status'] ) ? (string) $eventObject['status'] : NULL,
+            'order_id' => $orderId,
+            'checkout_id' => $checkoutId,
+            'currency' => $currency,
+            'amount_subtotal_minor' => $amountSubtotalMinor,
+            'amount_tax_minor' => $amountTaxMinor,
+            'amount_total_minor' => $amountTotalMinor,
+            'amount_refunded_minor' => $amountRefundedMinor,
+            'amount_subtotal_display' => $this->formatMinorUnitDisplay( $amountSubtotalMinor, $currency ),
+            'amount_tax_display' => $this->formatMinorUnitDisplay( $amountTaxMinor, $currency ),
+            'amount_total_display' => $this->formatMinorUnitDisplay( $amountTotalMinor, $currency ),
+            'amount_refunded_display' => $this->formatMinorUnitDisplay( $amountRefundedMinor, $currency ),
+            'customer_invoice_url' => $this->normalizePublicUrl( isset( $eventObject['invoice_url'] ) ? $eventObject['invoice_url'] : NULL ),
+            'customer_invoice_pdf_url' => $this->normalizePublicUrl( isset( $eventObject['invoice_pdf_url'] ) ? $eventObject['invoice_pdf_url'] : NULL ),
+            'customer_receipt_url' => $this->normalizePublicUrl( isset( $eventObject['receipt_url'] ) ? $eventObject['receipt_url'] : NULL ),
+        );
+
+        return $this->applyIpsInvoiceTotalComparison( $snapshot, $transaction );
+    }
+
+    /**
+     * Append IPS invoice total comparison fields to snapshot.
+     *
+     * @param array                  $snapshot
+     * @param \IPS\nexus\Transaction $transaction
+     * @return array
+     */
+    protected function applyIpsInvoiceTotalComparison( array $snapshot, \IPS\nexus\Transaction $transaction )
+    {
+        try
+        {
+            $invoice = $transaction->invoice;
+            if ( !$invoice || !( $invoice->total instanceof \IPS\nexus\Money ) )
+            {
+                return $snapshot;
+            }
+
+            $ipsTotalMinor = $this->moneyToMinorUnit( $invoice->total );
+            $ipsCurrency = \mb_strtoupper( (string) $invoice->total->currency );
+            $providerTotalMinor = ( isset( $snapshot['amount_total_minor'] ) && \is_numeric( $snapshot['amount_total_minor'] ) ) ? (int) $snapshot['amount_total_minor'] : NULL;
+            $taxMinor = ( isset( $snapshot['amount_tax_minor'] ) && \is_numeric( $snapshot['amount_tax_minor'] ) ) ? (int) $snapshot['amount_tax_minor'] : 0;
+
+            $snapshot['ips_invoice_total_minor'] = $ipsTotalMinor;
+            $snapshot['ips_invoice_total_display'] = $this->formatMinorUnitDisplay( $ipsTotalMinor, $ipsCurrency );
+
+            if ( $providerTotalMinor !== NULL )
+            {
+                $differenceMinor = $providerTotalMinor - $ipsTotalMinor;
+                $taxExplained = ( $differenceMinor !== 0 && $differenceMinor === $taxMinor );
+
+                $snapshot['total_difference_minor'] = $differenceMinor;
+                $snapshot['total_difference_display'] = ( $differenceMinor !== 0 ) ? $this->formatMinorUnitDisplay( $differenceMinor, $ipsCurrency ) : NULL;
+                $snapshot['total_difference_tax_explained'] = $taxExplained;
+                $snapshot['has_total_mismatch'] = ( $differenceMinor !== 0 && !$taxExplained );
+                $snapshot['total_mismatch_minor'] = $differenceMinor;
+                $snapshot['total_mismatch_display'] = ( $differenceMinor !== 0 ) ? $this->formatMinorUnitDisplay( $differenceMinor, $ipsCurrency ) : NULL;
+            }
+            else
+            {
+                $snapshot['total_difference_minor'] = NULL;
+                $snapshot['total_difference_display'] = NULL;
+                $snapshot['total_difference_tax_explained'] = NULL;
+                $snapshot['has_total_mismatch'] = NULL;
+                $snapshot['total_mismatch_minor'] = NULL;
+                $snapshot['total_mismatch_display'] = NULL;
+            }
+        }
+        catch ( \Exception $e ) {}
+
+        return $snapshot;
+    }
+
+    /**
+     * Convert Money value to minor units.
+     *
+     * @param \IPS\nexus\Money $money
+     * @return int
+     */
+    protected function moneyToMinorUnit( \IPS\nexus\Money $money )
+    {
+        $decimals = \IPS\nexus\Money::numberOfDecimalsForCurrency( $money->currency );
+        $multiplier = new \IPS\Math\Number( '1' . \str_repeat( '0', $decimals ) );
+        $minor = $money->amount->multiply( $multiplier );
+
+        return (int) (string) $minor;
+    }
+
+    /**
+     * Format minor-unit amount using currency precision.
+     *
+     * @param int|NULL    $amountMinor
+     * @param string|NULL $currency
+     * @return string|NULL
+     */
+    protected function formatMinorUnitDisplay( $amountMinor, $currency )
+    {
+        if ( $amountMinor === NULL || $currency === NULL || !\is_numeric( $amountMinor ) )
+        {
+            return NULL;
+        }
+
+        $currency = \mb_strtoupper( (string) $currency );
+        $amountMinor = (int) $amountMinor;
+        $negative = $amountMinor < 0;
+        $absolute = \abs( $amountMinor );
+        $decimals = \IPS\nexus\Money::numberOfDecimalsForCurrency( $currency );
+
+        if ( $decimals <= 0 )
+        {
+            $formatted = (string) $absolute;
+        }
+        else
+        {
+            $divisor = (int) \pow( 10, $decimals );
+            $major = \intdiv( $absolute, $divisor );
+            $fraction = $absolute % $divisor;
+            $formatted = $major . '.' . \str_pad( (string) $fraction, $decimals, '0', STR_PAD_LEFT );
+        }
+
+        return $currency . ' ' . ( $negative ? '-' : '' ) . $formatted;
+    }
+
+    /**
+     * Normalize public URL values persisted into settlement snapshots.
+     *
+     * @param mixed $url
+     * @return string|NULL
+     */
+    protected function normalizePublicUrl( $url )
+    {
+        if ( !\is_string( $url ) )
+        {
+            return NULL;
+        }
+
+        $url = \trim( $url );
+        if ( $url === '' )
+        {
+            return NULL;
+        }
+
+        if ( \filter_var( $url, FILTER_VALIDATE_URL ) === FALSE )
+        {
+            return NULL;
+        }
+
+        $parts = \parse_url( $url );
+        if ( !\is_array( $parts ) || empty( $parts['scheme'] ) || empty( $parts['host'] ) )
+        {
+            return NULL;
+        }
+
+        $scheme = \mb_strtolower( (string) $parts['scheme'] );
+        if ( !\in_array( $scheme, array( 'https', 'http' ), TRUE ) )
+        {
+            return NULL;
+        }
+
+        return $url;
     }
 
     /**

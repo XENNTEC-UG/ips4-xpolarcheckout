@@ -37,7 +37,6 @@ This document captures the active migration architecture for `xpolarcheckout`.
 
 ## Pending Migration Items
 
-- Finalize checkout payload fields for Polar session creation.
-- Complete event map for paid, failed, refunded, and partial-refund states.
-- Replace replay pull logic with Polar-native delivery/event retrieval.
-- Align settlement display hooks with finalized snapshot schema.
+- Finalize checkout/refund end-to-end validation using a real sandbox paid order flow.
+- Validate replay dry-run and live replay operations through ACP integrity actions.
+- Optional: extend customer/print hook presentation using normalized settlement snapshot schema.

@@ -35,9 +35,20 @@ Current runtime baseline is Phase 2 in-progress (`v1.0.1` / `10001`).
 
 5. Snapshot persistence
   - `xpolarcheckout_snapshot` is written on transaction and invoice extra data.
-  - Snapshot includes `event_type`, `provider_status`, `order_id`, `amount_total_minor`, `amount_refunded_minor`.
+  - Snapshot includes normalized settlement keys:
+    - `amount_total_display`
+    - `ips_invoice_total_display`
+    - `total_difference_display`
+    - `has_total_mismatch`
+    - `total_mismatch_display`
+  - Snapshot includes core event/provider keys:
+    - `event_type`
+    - `provider_status`
+    - `order_id`
+    - `amount_total_minor`
+    - `amount_refunded_minor`
 
 ## Pending Suite Expansion
 
-- B3 sandbox payload validation for checkout/refund provider calls.
-- B4 replay task implementation and runtime replay verification.
+- B3 end-to-end paid checkout + successful refund validation (real sandbox paid order fixture).
+- B4 live replay validation in ACP integrity panel (dry-run path is implemented and validated).
