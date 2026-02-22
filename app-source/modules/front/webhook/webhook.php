@@ -1105,14 +1105,28 @@ class _webhook extends \IPS\Dispatcher\Controller
             return FALSE;
         }
 
-        $secretMaterial = (string) $secret;
+        $secretMaterial = \trim( (string) $secret );
         if ( \strpos( $secretMaterial, 'whsec_' ) === 0 )
         {
             $secretMaterial = (string) \substr( $secretMaterial, 6 );
         }
 
-        $secretBytes = \base64_decode( $secretMaterial, TRUE );
-        if ( $secretBytes === FALSE )
+        $secretBytes = NULL;
+        if ( \ctype_xdigit( $secretMaterial ) && ( \strlen( $secretMaterial ) % 2 ) === 0 )
+        {
+            $secretBytes = \hex2bin( $secretMaterial );
+        }
+
+        if ( $secretBytes === NULL || $secretBytes === FALSE )
+        {
+            $decoded = \base64_decode( $secretMaterial, TRUE );
+            if ( $decoded !== FALSE )
+            {
+                $secretBytes = $decoded;
+            }
+        }
+
+        if ( $secretBytes === NULL || $secretBytes === FALSE )
         {
             /* Local Polar CLI secrets may be provided as raw text in development. */
             $secretBytes = $secretMaterial;

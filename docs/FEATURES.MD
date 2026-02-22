@@ -25,18 +25,20 @@
 
 ## Capability Status
 
-### Already implemented
+### Implemented
 - Gateway app scaffold and Nexus gateway registration path.
-- Webhook entrypoint and forensics persistence.
-- Signature freshness and verification hardening.
+- Webhook entrypoint and forensics persistence with 90-day retention cleanup.
+- Signature freshness and verification hardening (Standard Webhooks), including hex-secret handling for Polar CLI local tunnels.
 - Transaction-level idempotency and processing guardrails.
-- ACP integrity module and replay task skeleton.
-
-### In active implementation
-- Polar checkout creation API flow.
-- Polar event map finalization (`order.*`, `refund.*`, settlement updates).
-- Polar refund API integration in gateway `refund()` path.
-- Replay source rewrite to Polar delivery/event APIs.
+- ACP integrity module with environment badge (sandbox/production).
+- Polar checkout creation API flow with currency-aware minor-unit conversion.
+- Polar event map: `order.updated`, `order.refunded`, `checkout.updated`, `refund.updated` with safe state transition helpers and terminal-state guardrails.
+- Polar refund API integration with sandbox-validated request schema.
+- Replay pipeline sourced from Polar `/v1/webhooks/deliveries` API with deduplication, dry-run mode, and persisted replay cursor.
+- Configurable replay guardrails: lookback, overlap, and max events with clamped bounds.
+- Settlement snapshot schema with display keys, IPS-vs-provider total comparison, and mismatch detection.
+- Recovery upgrade package for partial installations.
+- Polar CLI Docker service for local webhook forwarding via SSE endpoint with auto-synced gateway settings.
 
 ### Post-MVP targets
 - Expanded analytics cards in integrity panel.
@@ -49,3 +51,4 @@
 - Strict URL and payload validation before persistence.
 - Centralized event-type constants and replay bounds.
 - ACP-safe error logging with forensic traceability.
+- Checkout currency must align with Polar org default presentment currency when presentment currencies are disabled in the Polar org.

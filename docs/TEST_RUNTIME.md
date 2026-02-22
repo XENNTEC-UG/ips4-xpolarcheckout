@@ -20,7 +20,7 @@ Current runtime baseline is Phase 2 in-progress (`v1.0.1` / `10001`).
   - Missing signature headers -> HTTP `403` + forensic row.
   - Invalid signature -> HTTP `403` + forensic row.
   - Stale timestamp (>300s) -> HTTP `403` + forensic row.
-  - Note: current local environment is missing `xpc_webhook_forensics`; response checks pass, row-persistence check is pending until schema path is reapplied.
+  - Hex-secret compatibility: signatures built with hex-key bytes validate correctly.
 
 3. Event-map transitions (Phase 2 B2)
   - `order.created` -> transaction moves to `gateway pending` (unless terminal).
@@ -52,11 +52,22 @@ Current runtime baseline is Phase 2 in-progress (`v1.0.1` / `10001`).
 ## Pending Suite Expansion
 
 - B3 end-to-end paid checkout + successful refund validation (real sandbox paid order fixture).
-- B4 live replay validation in ACP integrity panel (dry-run path is implemented and validated).
+- Checkout currency-path validation under mismatched IPS currency vs Polar org default presentment currency.
 
 ## Automated Checks Already Executed
 
 - Gateway registration runtime check (`XPolarCheckout` appears in gateway map and roots).
 - Replay task dry-run + live-run execution checks.
+- ACP integrity action checks:
+  - `Dry Run` action message confirmed.
+  - `Run Webhook Replay Now` action message confirmed.
 - Signature response checks (`missing`, `invalid`, `stale`).
-- Polar sandbox API contract checks for checkout creation and refund schema validation.
+- Signature normalization checks:
+  - hex-key HMAC accepted (`200 SUCCESS`)
+  - incorrect base64-decoded-key HMAC rejected (`403 INVALID_SIGNATURE`)
+- Forensics persistence checks:
+  - `xpc_webhook_forensics` table exists.
+  - rows persisted for `missing_signature`, `invalid_signature`, and `timestamp_too_old`.
+- Polar sandbox API contract checks:
+  - refund schema accepted (unknown order id returns expected provider error).
+  - checkout request currently rejected when payload omits org default presentment currency.

@@ -418,10 +418,19 @@ class _webhookReplay extends \IPS\Task
      */
     protected function normalizeWebhookSecret( $secret )
     {
-        $material = (string) $secret;
+        $material = \trim( (string) $secret );
         if ( \strpos( $material, 'whsec_' ) === 0 )
         {
             $material = (string) \substr( $material, 6 );
+        }
+
+        if ( \ctype_xdigit( $material ) && ( \strlen( $material ) % 2 ) === 0 )
+        {
+            $hexDecoded = \hex2bin( $material );
+            if ( $hexDecoded !== FALSE )
+            {
+                return $hexDecoded;
+            }
         }
 
         $decoded = \base64_decode( $material, TRUE );

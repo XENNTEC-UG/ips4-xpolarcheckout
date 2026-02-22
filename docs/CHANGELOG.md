@@ -1,5 +1,24 @@
 # X Polar Checkout App - Changelog
 
+## 2026-02-22 - Runtime Verification Pass + Signature Secret Normalization
+
+- Fixed webhook/replay secret normalization for Polar CLI hex secrets:
+  - `app-source/modules/front/webhook/webhook.php`
+  - `app-source/tasks/webhookReplay.php`
+- Normalization now applies `whsec_` strip, then hex-byte decode, then base64 fallback, then raw fallback.
+- Verified behavior with live runtime probes:
+  - valid HMAC built from hex-key bytes -> `200 SUCCESS`
+  - incorrect HMAC built from base64-decoded key path -> `403 INVALID_SIGNATURE`
+- Re-applied `xpolarcheckout` schema in runtime and verified forensic persistence:
+  - `xpc_webhook_forensics` exists and writes rows for `missing_signature`, `invalid_signature`, and `timestamp_too_old`.
+- Performed ACP regression checks (MCP browser):
+  - gateway appears in payment method selection (`X Polar Checkout`)
+  - gateway edit/save succeeds
+  - integrity actions (`Dry Run`, `Run Webhook Replay Now`) execute successfully
+- Identified current Polar sandbox blocker:
+  - checkout request fails when payload omits org default presentment currency (`default_presentment_currency=usd` in current org).
+  - tracked in `docs/BACKLOG.md` as top user/environment prerequisite.
+
 ## 2026-02-22 - Infrastructure: Polar CLI Docker Service
 
 - Added `polar-cli` Docker service for local webhook forwarding via Polar SSE endpoint.

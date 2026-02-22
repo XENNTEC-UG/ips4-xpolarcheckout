@@ -424,9 +424,31 @@ Rollback:
 - Environment gap detected:
   - local DB currently missing `xpc_webhook_forensics` table; forensic row persistence verification remains open until schema path is reapplied.
 
+### 2026-02-22 - Follow-up Runtime Validation (Post-MCP Recovery)
+
+- ACP verification executed via MCP browser:
+  - `X Polar Checkout` appears in gateway create flow.
+  - existing `Polar Checkout` gateway settings open/save successfully.
+  - integrity actions `Dry Run` + `Run Webhook Replay Now` execute successfully.
+- Forensics schema gap resolved locally:
+  - executed `installDatabaseSchema()` for `xpolarcheckout`.
+  - `xpc_webhook_forensics` now exists and persists signature failure rows.
+- Critical signature bug fixed:
+  - webhook and replay secret normalization now handles hex secrets correctly before base64 fallback.
+  - files:
+    - `app-source/modules/front/webhook/webhook.php`
+    - `app-source/tasks/webhookReplay.php`
+  - validation:
+    - hex-key HMAC -> `200 SUCCESS`
+    - base64-decoded-key HMAC -> `403 INVALID_SIGNATURE`
+- New integration constraint identified:
+  - Polar checkout API rejects payloads that do not include org `default_presentment_currency`.
+  - current sandbox org default is `usd`; local IPS transactions are currently `EUR`.
+  - this is now tracked as top prerequisite in `docs/BACKLOG.md` before manual paid-checkout testing.
+
 ### Remaining Phase 2 Work
 
 - B3: complete end-to-end paid checkout + successful refund validation with a real sandbox paid order (`gw_id`).
-- ACP click-through verification (gateway save flow + integrity panel actions).
-- Complete forensic-table verification on upgraded local install (`xpc_webhook_forensics` presence + insert checks).
-- Full `docs/TEST_RUNTIME.md` smoke matrix execution.
+- Resolve org/default-currency alignment for sandbox checkout tests (Polar default presentment currency vs IPS transaction currency).
+- Implement webhook endpoint lifecycle completion (`webhook_endpoint_id` discovery/creation/backfill) so integrity endpoint panel can fully sync events.
+- Full `docs/TEST_RUNTIME.md` smoke matrix execution with real paid + refund fixtures.
