@@ -6,7 +6,7 @@
 
 | Package version | Long version | Source |
 | --- | --- | --- |
-| `1.0.1` | `10001` | `app-source/data/versions.json` |
+| `1.0.3` | `10003` | `app-source/data/versions.json` |
 
 ## Product Positioning
 
@@ -22,6 +22,7 @@
 | Settlement evidence snapshots | Durable capture of order/refund/tax evidence on transaction metadata | Better support and accounting diagnostics |
 | Integrity operations center | ACP integrity panel, replay controls, and forensics visibility | Faster incident detection and response |
 | Recovery tooling | Scheduled/manual replay paths plus explicit run telemetry | Lower revenue risk during webhook outages |
+| Dynamic product mapping | On-demand Polar product creation mirroring IPS packages | Correct product names on Polar receipts and emails |
 
 ## Capability Status
 
@@ -40,6 +41,15 @@
 - Settlement snapshot schema with display keys, IPS-vs-provider total comparison, and mismatch detection.
 - Recovery upgrade package for partial installations.
 - Polar CLI Docker service for local webhook forwarding via SSE endpoint with auto-synced gateway settings.
+- Dynamic Polar product mapping: on-demand product creation mirroring IPS Nexus packages with cached lookup table and name sync at checkout time.
+- ACP product mapping viewer with bulk name sync capability.
+- ACP checkout-flow controls:
+  - `Allow Polar for all carts`
+  - `Hybrid route: show Polar only for single-item carts` (Polar hidden for multi-item invoices during method selection).
+- Multi-item consolidated label modes for Polar receipts/invoices:
+  - legacy first-item label
+  - neutral `Invoice # + item count`
+  - explicit item-list label (`Item A + Item B + ...`) with safe truncation.
 
 ### Post-MVP targets
 - Expanded analytics cards in integrity panel.
@@ -53,6 +63,10 @@
 - Currency-aware minor-unit conversion using IPS `\IPS\nexus\Money::numberOfDecimalsForCurrency()` and `\IPS\Math\Number` (no fixed 2-decimal assumption).
 - Checkout payload formatted as `prices[product_id] = [ { ...price override... } ]` per Polar API requirements.
 - Coupon name hook for Polar-compatible discount handling.
+- Optional hybrid checkout gating is enforced in both:
+  - `checkValidity()` (hides method for multi-item invoices in checkout UI), and
+  - `auth()` (defense-in-depth guard if gateway is forced).
+- Consolidated multi-item receipts can use reusable synthetic Polar products so receipt titles remain explicit while preserving one-payment checkout constraints.
 
 ### Webhook reliability and safety
 - Standard Webhooks signature verification with hex-secret normalization for Polar CLI local tunnels (strip `whsec_` → hex-byte decode → base64 fallback → raw fallback).

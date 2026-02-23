@@ -4,25 +4,45 @@
 
 This file tracks current implementation tasks. Canonical remote tracking remains GitHub issue `#1`.
 
-## User Test Required (Top Priority)
+## User Test Required
 
-- [ ] **Polar token scope update for webhook management**
-  - Current configured token can create checkouts (`POST /v1/checkouts/` returns `201`) but cannot manage webhook endpoints (`GET/POST /v1/webhooks/endpoints/` returns `401 Unauthorized`).
-  - Generate/update a Polar organization access token that includes webhook endpoint scopes (`webhooks:read` and `webhooks:write`), then save it in ACP gateway settings.
-  - Re-save the gateway and verify `webhook_endpoint_id` is persisted.
+- [ ] **Polar token scope update**
+  - Current configured token can create checkouts but cannot manage webhook endpoints (`401 Unauthorized`) or products.
+  - Generate/update a Polar organization access token that includes `webhooks:read`, `webhooks:write`, `products:read`, and `products:write` scopes.
+  - Re-save the gateway in ACP and verify `webhook_endpoint_id` is persisted.
+  - Without `products:write`, dynamic product mapping falls back to default product silently.
 
-- [ ] **Manual paid checkout (sandbox)**
-  - Complete a real hosted Polar checkout from Nexus invoice flow and confirm IPS transaction reaches paid state.
-  - Confirm `t_gw_id` stores the Polar order id (UUIDv4).
+- [x] **Manual paid checkout (sandbox)** — verified 2026-02-23
+  - Invoice #102, Transaction #79 reached `okay` (paid) via Polar sandbox hosted checkout.
+  - 7 webhook events processed. `t_gw_id` updated to Polar order UUID `637ac7ff-...`.
+  - Settlement snapshot captured with `has_total_mismatch: false`.
 
 - [ ] **Manual refund flow (sandbox)**
   - Partial refund from IPS/Nexus path -> transaction becomes part-refunded.
   - Full remaining refund -> transaction becomes refunded.
 
+## Multi-Cart Strategy Tracking
+
+- [x] **Implemented interim controls (ACP)**
+  - `Checkout flow mode`:
+    - allow Polar for all carts
+    - hybrid: single-item carts only
+  - `Multi-item receipt label mode`:
+    - first item (legacy)
+    - invoice + item count
+    - explicit item-list label
+
+- [x] **Implemented consolidated multi-item fallback**
+  - Multi-item invoices are sent as one payable Polar line (combined total), while IPS/Nexus remains itemized source-of-truth.
+
+- [ ] **External dependency (Polar platform)**
+  - Await native additive multi-line cart/invoice support from Polar.
+  - Once available, replace consolidation fallback with true provider-side line-item checkout and invoice parity.
+
 ## Agent-Executable Open Tasks
 
 - [ ] **B3 completion evidence (real paid-order refund success)**
-  - One end-to-end successful refund call is still required against a real paid Polar order id created through Nexus runtime.
+  - One end-to-end successful refund call is still required against a real paid Polar order id created through Nexus runtime. Transaction #79 (order `637ac7ff-f516-4bf3-ba5b-c4e230b9ced5`) is now available for this test.
 
 ## Agent Validation Completed (Latest)
 

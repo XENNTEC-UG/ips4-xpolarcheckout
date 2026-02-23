@@ -38,6 +38,16 @@ class _XPolarCheckout extends \IPS\nexus\Gateway
         'checkout.updated',
     );
 
+    const CHECKOUT_FLOW_MODE_ALLOW_ALL = 'allow_all';
+    const CHECKOUT_FLOW_MODE_SINGLE_ITEM_ONLY = 'single_item_only';
+
+    const MULTI_ITEM_LABEL_MODE_FIRST_ITEM = 'first_item';
+    const MULTI_ITEM_LABEL_MODE_INVOICE_COUNT = 'invoice_count';
+    const MULTI_ITEM_LABEL_MODE_ITEM_LIST = 'item_list';
+
+    const CHECKOUT_LABEL_CACHE_KEY = 'xpolarcheckout_checkout_label_products';
+    const CHECKOUT_LABEL_CACHE_MAX = 200;
+
     /**
      * Authorize transaction by creating a Polar checkout and redirecting the customer.
      *
@@ -74,19 +84,73 @@ class _XPolarCheckout extends \IPS\nexus\Gateway
 
         $apiBase = static::resolveApiBase( $settings );
         $amountMinor = $this->moneyToMinorUnit( $transaction->amount );
-
         $externalCustomerId = $transaction->member ? (string) (int) $transaction->member->member_id : '';
-        $payload = array(
-            'products' => array( $defaultProductId ),
-            'currency' => $transactionCurrency,
-            'success_url' => (string) $transaction->url()->setQueryString( 'pending', 1 ),
-            'metadata' => array(
-                'ips_transaction_id' => (string) (int) $transaction->id,
-                'ips_invoice_id' => (string) (int) $transaction->invoice->id,
-                'ips_member_id' => $externalCustomerId,
-                'gateway_id' => (string) (int) $this->id,
-            ),
-            'prices' => array(
+        $checkoutFlowMode = isset( $settings['checkout_flow_mode'] ) ? (string) $settings['checkout_flow_mode'] : static::CHECKOUT_FLOW_MODE_ALLOW_ALL;
+        $multiItemLabelMode = isset( $settings['multi_item_label_mode'] ) ? (string) $settings['multi_item_label_mode'] : static::MULTI_ITEM_LABEL_MODE_FIRST_ITEM;
+        $purchaseLineCount = $this->countPayableInvoiceLines( $transaction->invoice );
+
+        if ( $checkoutFlowMode === static::CHECKOUT_FLOW_MODE_SINGLE_ITEM_ONLY && $purchaseLineCount > 1 )
+        {
+            throw new \LogicException( 'xpolarcheckout_checkout_flow_single_item_only_error' );
+        }
+
+        /* Build per-product payload from invoice items */
+        $products = array();
+        $pricesMap = array();
+        $itemNames = array();
+
+        foreach ( $transaction->invoice->items as $invoiceItem )
+        {
+            $itemName = isset( $invoiceItem->name ) ? \trim( (string) $invoiceItem->name ) : '';
+            if ( $itemName === '' )
+            {
+                $itemName = 'Invoice #' . $transaction->invoice->id;
+            }
+
+            $polarProductId = NULL;
+            $ipsPackageId = isset( $invoiceItem->id ) ? (int) $invoiceItem->id : 0;
+
+            /* Only map package-type items with a valid package ID */
+            if ( $ipsPackageId > 0 && $invoiceItem instanceof \IPS\nexus\extensions\nexus\Item\Package )
+            {
+                $polarProductId = $this->ensurePolarProduct( $ipsPackageId, $itemName, $settings );
+            }
+
+            if ( $polarProductId === NULL )
+            {
+                $polarProductId = $defaultProductId;
+            }
+
+            /* Calculate line total: unit price * quantity */
+            $lineAmount = $this->moneyToMinorUnit( $invoiceItem->price );
+            $lineQuantity = isset( $invoiceItem->quantity ) ? \max( 1, (int) $invoiceItem->quantity ) : 1;
+            $lineTotal = $lineAmount * $lineQuantity;
+
+            if ( !isset( $pricesMap[ $polarProductId ] ) )
+            {
+                $products[] = $polarProductId;
+                $pricesMap[ $polarProductId ] = array(
+                    array(
+                        'amount_type' => 'fixed',
+                        'price_amount' => $lineTotal,
+                        'price_currency' => $transactionCurrency,
+                    ),
+                );
+            }
+            else
+            {
+                /* Same product appears twice — add to existing price */
+                $pricesMap[ $polarProductId ][0]['price_amount'] += $lineTotal;
+            }
+
+            $itemNames[] = $itemName;
+        }
+
+        /* Fallback: no items resolved */
+        if ( empty( $products ) )
+        {
+            $products = array( $defaultProductId );
+            $pricesMap = array(
                 $defaultProductId => array(
                     array(
                         'amount_type' => 'fixed',
@@ -94,7 +158,58 @@ class _XPolarCheckout extends \IPS\nexus\Gateway
                         'price_currency' => $transactionCurrency,
                     ),
                 ),
+            );
+        }
+
+        /*
+         * Polar treats multiple products as radio-button choices, not line items.
+         * For multi-item invoices, consolidate into the first product with the
+         * combined total so the customer pays the full invoice amount in one go.
+         */
+        if ( \count( $products ) > 1 )
+        {
+            $firstProductId = $products[0];
+            $combinedAmount = 0;
+            foreach ( $pricesMap as $prices )
+            {
+                $combinedAmount += (int) $prices[0]['price_amount'];
+            }
+
+            $consolidatedProductId = $firstProductId;
+            if ( $multiItemLabelMode !== static::MULTI_ITEM_LABEL_MODE_FIRST_ITEM )
+            {
+                $displayLabel = $this->buildConsolidatedCheckoutLabel( $transaction->invoice, $itemNames, $multiItemLabelMode );
+                $displayProductId = $this->getOrCreateCheckoutLabelProduct( $displayLabel, $settings );
+                if ( $displayProductId !== NULL )
+                {
+                    $consolidatedProductId = $displayProductId;
+                }
+            }
+
+            $products = array( $consolidatedProductId );
+            $pricesMap = array(
+                $consolidatedProductId => array(
+                    array(
+                        'amount_type' => 'fixed',
+                        'price_amount' => $combinedAmount,
+                        'price_currency' => $transactionCurrency,
+                    ),
+                ),
+            );
+        }
+
+        $payload = array(
+            'products' => $products,
+            'currency' => $transactionCurrency,
+            'success_url' => (string) $transaction->url()->setQueryString( 'pending', 1 ),
+            'metadata' => array(
+                'ips_transaction_id' => (string) (int) $transaction->id,
+                'ips_invoice_id' => (string) (int) $transaction->invoice->id,
+                'ips_member_id' => $externalCustomerId,
+                'gateway_id' => (string) (int) $this->id,
+                'ips_item_names' => \implode( ', ', \array_slice( $itemNames, 0, 3 ) ),
             ),
+            'prices' => $pricesMap,
         );
 
         if ( $externalCustomerId !== '' )
@@ -172,6 +287,17 @@ class _XPolarCheckout extends \IPS\nexus\Gateway
             return 'xpolarcheckout_presentment_currency_mismatch';
         }
 
+        $checkoutFlowMode = isset( $settings['checkout_flow_mode'] ) ? (string) $settings['checkout_flow_mode'] : static::CHECKOUT_FLOW_MODE_ALLOW_ALL;
+        if ( $checkoutFlowMode === static::CHECKOUT_FLOW_MODE_SINGLE_ITEM_ONLY )
+        {
+            $checkoutInvoice = $this->loadCheckoutInvoiceFromRequest();
+            if ( $checkoutInvoice instanceof \IPS\nexus\Invoice && $this->countPayableInvoiceLines( $checkoutInvoice ) > 1 )
+            {
+                /* Return boolean FALSE here so the gateway is hidden in checkout method selector. */
+                return FALSE;
+            }
+        }
+
         return TRUE;
     }
 
@@ -218,6 +344,29 @@ class _XPolarCheckout extends \IPS\nexus\Gateway
         ) ) );
         $form->add( new \IPS\Helpers\Form\Text( 'xpolarcheckout_access_token', isset( $current['access_token'] ) ? $current['access_token'] : '', FALSE ) );
         $form->add( new \IPS\Helpers\Form\Text( 'xpolarcheckout_default_product_id', isset( $current['default_product_id'] ) ? $current['default_product_id'] : '', FALSE ) );
+        $form->add( new \IPS\Helpers\Form\Select(
+            'xpolarcheckout_checkout_flow_mode',
+            isset( $current['checkout_flow_mode'] ) ? $current['checkout_flow_mode'] : static::CHECKOUT_FLOW_MODE_ALLOW_ALL,
+            FALSE,
+            array(
+                'options' => array(
+                    static::CHECKOUT_FLOW_MODE_ALLOW_ALL => \IPS\Member::loggedIn()->language()->addToStack( 'xpolarcheckout_checkout_flow_mode_allow_all' ),
+                    static::CHECKOUT_FLOW_MODE_SINGLE_ITEM_ONLY => \IPS\Member::loggedIn()->language()->addToStack( 'xpolarcheckout_checkout_flow_mode_single_item_only' ),
+                ),
+            )
+        ) );
+        $form->add( new \IPS\Helpers\Form\Select(
+            'xpolarcheckout_multi_item_label_mode',
+            isset( $current['multi_item_label_mode'] ) ? $current['multi_item_label_mode'] : static::MULTI_ITEM_LABEL_MODE_FIRST_ITEM,
+            FALSE,
+            array(
+                'options' => array(
+                    static::MULTI_ITEM_LABEL_MODE_FIRST_ITEM => \IPS\Member::loggedIn()->language()->addToStack( 'xpolarcheckout_multi_item_label_mode_first_item' ),
+                    static::MULTI_ITEM_LABEL_MODE_INVOICE_COUNT => \IPS\Member::loggedIn()->language()->addToStack( 'xpolarcheckout_multi_item_label_mode_invoice_count' ),
+                    static::MULTI_ITEM_LABEL_MODE_ITEM_LIST => \IPS\Member::loggedIn()->language()->addToStack( 'xpolarcheckout_multi_item_label_mode_item_list' ),
+                ),
+            )
+        ) );
         $form->add( new \IPS\Helpers\Form\Text(
             'xpolarcheckout_presentment_currency',
             isset( $current['presentment_currency'] ) ? \mb_strtoupper( (string) $current['presentment_currency'] ) : \mb_strtoupper( static::DEFAULT_PRESENTMENT_CURRENCY ),
@@ -262,6 +411,16 @@ class _XPolarCheckout extends \IPS\nexus\Gateway
         $settings['environment'] = ( isset( $settings['environment'] ) && $settings['environment'] === 'production' ) ? 'production' : 'sandbox';
         $settings['access_token'] = isset( $settings['access_token'] ) ? \trim( (string) $settings['access_token'] ) : '';
         $settings['default_product_id'] = isset( $settings['default_product_id'] ) ? \trim( (string) $settings['default_product_id'] ) : '';
+        $settings['checkout_flow_mode'] = isset( $settings['checkout_flow_mode'] ) ? (string) $settings['checkout_flow_mode'] : static::CHECKOUT_FLOW_MODE_ALLOW_ALL;
+        if ( !\in_array( $settings['checkout_flow_mode'], array( static::CHECKOUT_FLOW_MODE_ALLOW_ALL, static::CHECKOUT_FLOW_MODE_SINGLE_ITEM_ONLY ), TRUE ) )
+        {
+            $settings['checkout_flow_mode'] = static::CHECKOUT_FLOW_MODE_ALLOW_ALL;
+        }
+        $settings['multi_item_label_mode'] = isset( $settings['multi_item_label_mode'] ) ? (string) $settings['multi_item_label_mode'] : static::MULTI_ITEM_LABEL_MODE_FIRST_ITEM;
+        if ( !\in_array( $settings['multi_item_label_mode'], array( static::MULTI_ITEM_LABEL_MODE_FIRST_ITEM, static::MULTI_ITEM_LABEL_MODE_INVOICE_COUNT, static::MULTI_ITEM_LABEL_MODE_ITEM_LIST ), TRUE ) )
+        {
+            $settings['multi_item_label_mode'] = static::MULTI_ITEM_LABEL_MODE_FIRST_ITEM;
+        }
         $settings['presentment_currency'] = isset( $settings['presentment_currency'] ) ? \mb_strtolower( \trim( (string) $settings['presentment_currency'] ) ) : static::DEFAULT_PRESENTMENT_CURRENCY;
         $settings['webhook_secret'] = isset( $settings['webhook_secret'] ) ? \trim( (string) $settings['webhook_secret'] ) : '';
         $settings['webhook_endpoint_id'] = isset( $settings['webhook_endpoint_id'] ) ? \trim( (string) $settings['webhook_endpoint_id'] ) : '';
@@ -331,6 +490,454 @@ class _XPolarCheckout extends \IPS\nexus\Gateway
         }
 
         return $settings;
+    }
+
+    /**
+     * Count payable invoice lines (positive value rows only).
+     *
+     * @param   \IPS\nexus\Invoice $invoice
+     * @return  int
+     */
+    protected function countPayableInvoiceLines( \IPS\nexus\Invoice $invoice )
+    {
+        $count = 0;
+        foreach ( $invoice->items as $invoiceItem )
+        {
+            try
+            {
+                $lineAmount = $this->moneyToMinorUnit( $invoiceItem->price );
+            }
+            catch ( \Exception $e )
+            {
+                $lineAmount = 0;
+            }
+
+            if ( $lineAmount > 0 )
+            {
+                $count++;
+            }
+        }
+
+        return $count;
+    }
+
+    /**
+     * Try to load the checkout invoice from the current front request context.
+     *
+     * @return \IPS\nexus\Invoice|NULL
+     */
+    protected function loadCheckoutInvoiceFromRequest()
+    {
+        if ( (string) \IPS\Request::i()->app !== 'nexus'
+            || (string) \IPS\Request::i()->module !== 'checkout'
+            || (string) \IPS\Request::i()->controller !== 'checkout' )
+        {
+            return NULL;
+        }
+
+        $invoiceId = isset( \IPS\Request::i()->id ) ? (int) \IPS\Request::i()->id : 0;
+        if ( $invoiceId <= 0 )
+        {
+            return NULL;
+        }
+
+        try
+        {
+            return \IPS\nexus\Invoice::load( $invoiceId );
+        }
+        catch ( \Exception $e )
+        {
+            return NULL;
+        }
+    }
+
+    /**
+     * Build consolidated checkout label for multi-item invoices.
+     *
+     * @param   \IPS\nexus\Invoice $invoice
+     * @param   array               $itemNames
+     * @param   string              $labelMode
+     * @return  string
+     */
+    protected function buildConsolidatedCheckoutLabel( \IPS\nexus\Invoice $invoice, array $itemNames, $labelMode )
+    {
+        $labelItems = array();
+        $lineCount = 0;
+
+        foreach ( $invoice->items as $invoiceItem )
+        {
+            try
+            {
+                $lineAmount = $this->moneyToMinorUnit( $invoiceItem->price );
+            }
+            catch ( \Exception $e )
+            {
+                $lineAmount = 0;
+            }
+
+            if ( $lineAmount <= 0 )
+            {
+                continue;
+            }
+
+            $lineCount++;
+            $name = isset( $invoiceItem->name ) ? \trim( (string) $invoiceItem->name ) : '';
+            if ( $name === '' )
+            {
+                $name = 'Invoice #' . (int) $invoice->id;
+            }
+
+            $quantity = isset( $invoiceItem->quantity ) ? \max( 1, (int) $invoiceItem->quantity ) : 1;
+            if ( !isset( $labelItems[ $name ] ) )
+            {
+                $labelItems[ $name ] = 0;
+            }
+            $labelItems[ $name ] += $quantity;
+        }
+
+        if ( empty( $labelItems ) )
+        {
+            foreach ( $itemNames as $name )
+            {
+                $name = \trim( (string) $name );
+                if ( $name === '' )
+                {
+                    continue;
+                }
+                if ( !isset( $labelItems[ $name ] ) )
+                {
+                    $labelItems[ $name ] = 0;
+                }
+                $labelItems[ $name ]++;
+            }
+            $lineCount = \count( $labelItems );
+        }
+
+        $label = '';
+        if ( $labelMode === static::MULTI_ITEM_LABEL_MODE_INVOICE_COUNT )
+        {
+            $itemWord = ( $lineCount === 1 ) ? 'item' : 'items';
+            $label = 'Invoice #' . (int) $invoice->id . ' (' . $lineCount . ' ' . $itemWord . ')';
+        }
+        elseif ( $labelMode === static::MULTI_ITEM_LABEL_MODE_ITEM_LIST )
+        {
+            $parts = array();
+            foreach ( $labelItems as $name => $quantity )
+            {
+                $parts[] = ( $quantity > 1 ? $quantity . 'x ' : '' ) . $name;
+            }
+            $label = \implode( ' + ', $parts );
+
+            if ( \mb_strlen( $label ) > 120 )
+            {
+                $shortParts = \array_slice( $parts, 0, 3 );
+                $remaining = \count( $parts ) - \count( $shortParts );
+                $label = \implode( ' + ', $shortParts );
+                if ( $remaining > 0 )
+                {
+                    $label .= ' +' . $remaining . ' more';
+                }
+            }
+        }
+        else
+        {
+            return '';
+        }
+
+        $label = \preg_replace( '/\s+/', ' ', \trim( (string) $label ) );
+        if ( !\is_string( $label ) || $label === '' )
+        {
+            $label = 'Invoice #' . (int) $invoice->id;
+        }
+        if ( \mb_strlen( $label ) < 3 )
+        {
+            $label .= ' order';
+        }
+
+        return \mb_substr( $label, 0, 120 );
+    }
+
+    /**
+     * Resolve or create a Polar product used as checkout display label.
+     *
+     * @param   string  $label
+     * @param   array   $settings
+     * @return  string|NULL
+     */
+    protected function getOrCreateCheckoutLabelProduct( $label, array $settings )
+    {
+        $label = \trim( (string) $label );
+        if ( $label === '' )
+        {
+            return NULL;
+        }
+
+        $accessToken = isset( $settings['access_token'] ) ? \trim( (string) $settings['access_token'] ) : '';
+        if ( $accessToken === '' )
+        {
+            return NULL;
+        }
+
+        $labelHash = \sha1( \mb_strtolower( $label ) );
+        $cache = $this->getCheckoutLabelProductCache();
+        if ( isset( $cache[ $labelHash ]['id'] ) && \is_string( $cache[ $labelHash ]['id'] ) && $cache[ $labelHash ]['id'] !== '' )
+        {
+            $cache[ $labelHash ]['updated_at'] = \time();
+            $this->setCheckoutLabelProductCache( $cache );
+            return $cache[ $labelHash ]['id'];
+        }
+
+        $presentmentCurrency = isset( $settings['presentment_currency'] ) ? \mb_strtolower( \trim( (string) $settings['presentment_currency'] ) ) : static::DEFAULT_PRESENTMENT_CURRENCY;
+        $apiBase = static::resolveApiBase( $settings );
+
+        try
+        {
+            $createPayload = \json_encode( array(
+                'name' => $label,
+                'prices' => array(
+                    array(
+                        'amount_type' => 'fixed',
+                        'price_amount' => 999,
+                        'price_currency' => $presentmentCurrency,
+                    ),
+                ),
+                'metadata' => array(
+                    'source' => 'xpolarcheckout',
+                    'label_hash' => $labelHash,
+                    'label_mode' => 'checkout_consolidation',
+                ),
+            ) );
+
+            if ( !\is_string( $createPayload ) )
+            {
+                return NULL;
+            }
+
+            $response = \IPS\Http\Url::external( $apiBase . '/products/' )
+                ->request( 20 )
+                ->setHeaders( array(
+                    'Authorization' => 'Bearer ' . $accessToken,
+                    'Content-Type' => 'application/json',
+                    'Accept' => 'application/json',
+                ) )
+                ->post( $createPayload )
+                ->decodeJson();
+
+            if ( !\is_array( $response ) || !isset( $response['id'] ) || !\is_string( $response['id'] ) || $response['id'] === '' )
+            {
+                return NULL;
+            }
+
+            $cache[ $labelHash ] = array(
+                'id' => (string) $response['id'],
+                'name' => $label,
+                'updated_at' => \time(),
+            );
+            $this->setCheckoutLabelProductCache( $cache );
+
+            return (string) $response['id'];
+        }
+        catch ( \Exception $e )
+        {
+            \IPS\Log::log( $e, 'xpolarcheckout_checkout_label_product' );
+            return NULL;
+        }
+    }
+
+    /**
+     * Read checkout-label product cache from datastore.
+     *
+     * @return  array
+     */
+    protected function getCheckoutLabelProductCache()
+    {
+        $key = static::CHECKOUT_LABEL_CACHE_KEY;
+        try
+        {
+            if ( isset( \IPS\Data\Store::i()->$key ) && \is_array( \IPS\Data\Store::i()->$key ) )
+            {
+                return \IPS\Data\Store::i()->$key;
+            }
+        }
+        catch ( \Exception $e ) {}
+
+        return array();
+    }
+
+    /**
+     * Persist checkout-label product cache in datastore.
+     *
+     * @param   array $cache
+     * @return  void
+     */
+    protected function setCheckoutLabelProductCache( array $cache )
+    {
+        \uasort( $cache, function ( $a, $b ) {
+            $left = isset( $a['updated_at'] ) ? (int) $a['updated_at'] : 0;
+            $right = isset( $b['updated_at'] ) ? (int) $b['updated_at'] : 0;
+
+            if ( $left === $right )
+            {
+                return 0;
+            }
+
+            return ( $left > $right ) ? -1 : 1;
+        } );
+
+        if ( \count( $cache ) > static::CHECKOUT_LABEL_CACHE_MAX )
+        {
+            $cache = \array_slice( $cache, 0, static::CHECKOUT_LABEL_CACHE_MAX, TRUE );
+        }
+
+        $key = static::CHECKOUT_LABEL_CACHE_KEY;
+        try
+        {
+            \IPS\Data\Store::i()->$key = $cache;
+        }
+        catch ( \Exception $e ) {}
+    }
+
+    /**
+     * Ensure a Polar product exists for the given IPS package, creating or updating as needed.
+     *
+     * @param   int     $ipsPackageId   IPS Nexus package ID
+     * @param   string  $productName    Current product name from IPS
+     * @param   array   $settings       Gateway settings
+     * @return  string|NULL             Polar product ID, or NULL on failure
+     */
+    protected function ensurePolarProduct( $ipsPackageId, $productName, array $settings )
+    {
+        $ipsPackageId = (int) $ipsPackageId;
+        $productName = \trim( (string) $productName );
+        if ( $ipsPackageId <= 0 || $productName === '' )
+        {
+            return NULL;
+        }
+
+        /* Polar product name minimum is 3 chars */
+        if ( \mb_strlen( $productName ) < 3 )
+        {
+            $productName .= ' (item)';
+        }
+
+        $accessToken = isset( $settings['access_token'] ) ? \trim( (string) $settings['access_token'] ) : '';
+        if ( $accessToken === '' )
+        {
+            return NULL;
+        }
+
+        $apiBase = static::resolveApiBase( $settings );
+        $presentmentCurrency = isset( $settings['presentment_currency'] ) ? \mb_strtolower( \trim( (string) $settings['presentment_currency'] ) ) : static::DEFAULT_PRESENTMENT_CURRENCY;
+
+        /* Check existing mapping */
+        try
+        {
+            $row = \IPS\Db::i()->select( '*', 'xpc_product_map', array( 'ips_package_id=?', $ipsPackageId ) )->first();
+        }
+        catch ( \UnderflowException $e )
+        {
+            $row = NULL;
+        }
+        catch ( \Exception $e )
+        {
+            \IPS\Log::log( $e, 'xpolarcheckout_product_map' );
+            return NULL;
+        }
+
+        if ( \is_array( $row ) && isset( $row['polar_product_id'] ) && $row['polar_product_id'] !== '' )
+        {
+            /* Name sync: PATCH only when name actually changed */
+            $storedName = isset( $row['product_name'] ) ? (string) $row['product_name'] : '';
+            if ( $storedName !== $productName )
+            {
+                try
+                {
+                    $patchPayload = \json_encode( array( 'name' => $productName ) );
+                    if ( \is_string( $patchPayload ) )
+                    {
+                        \IPS\Http\Url::external( $apiBase . '/products/' . $row['polar_product_id'] )
+                            ->request( 15 )
+                            ->setHeaders( array(
+                                'Authorization' => 'Bearer ' . $accessToken,
+                                'Content-Type' => 'application/json',
+                                'Accept' => 'application/json',
+                            ) )
+                            ->patch( $patchPayload );
+                    }
+
+                    \IPS\Db::i()->update( 'xpc_product_map', array(
+                        'product_name' => $productName,
+                        'updated_at' => \time(),
+                    ), array( 'map_id=?', (int) $row['map_id'] ) );
+
+                    \IPS\Log::log( \sprintf( 'Updated Polar product name: %s (package %d)', $productName, $ipsPackageId ), 'xpolarcheckout_product_map' );
+                }
+                catch ( \Exception $e )
+                {
+                    \IPS\Log::log( $e, 'xpolarcheckout_product_map' );
+                }
+            }
+
+            return (string) $row['polar_product_id'];
+        }
+
+        /* Create new Polar product */
+        try
+        {
+            $createPayload = \json_encode( array(
+                'name' => $productName,
+                'prices' => array(
+                    array(
+                        'amount_type' => 'fixed',
+                        'price_amount' => 999,
+                        'price_currency' => $presentmentCurrency,
+                    ),
+                ),
+                'metadata' => array(
+                    'ips_package_id' => (string) $ipsPackageId,
+                    'source' => 'xpolarcheckout',
+                ),
+            ) );
+
+            if ( !\is_string( $createPayload ) )
+            {
+                return NULL;
+            }
+
+            $response = \IPS\Http\Url::external( $apiBase . '/products/' )
+                ->request( 20 )
+                ->setHeaders( array(
+                    'Authorization' => 'Bearer ' . $accessToken,
+                    'Content-Type' => 'application/json',
+                    'Accept' => 'application/json',
+                ) )
+                ->post( $createPayload )
+                ->decodeJson();
+
+            if ( !\is_array( $response ) || !isset( $response['id'] ) || !\is_string( $response['id'] ) || $response['id'] === '' )
+            {
+                \IPS\Log::log( \sprintf( 'Polar product create response missing id for package %d', $ipsPackageId ), 'xpolarcheckout_product_map' );
+                return NULL;
+            }
+
+            $polarProductId = (string) $response['id'];
+            $now = \time();
+
+            \IPS\Db::i()->insert( 'xpc_product_map', array(
+                'ips_package_id' => $ipsPackageId,
+                'polar_product_id' => $polarProductId,
+                'product_name' => $productName,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ) );
+
+            return $polarProductId;
+        }
+        catch ( \Exception $e )
+        {
+            \IPS\Log::log( $e, 'xpolarcheckout_product_map' );
+            return NULL;
+        }
     }
 
     /**

@@ -135,5 +135,114 @@
 				"length": [null, null]
 			}
 		}
+	},
+	"xpc_product_map": {
+		"name": "xpc_product_map",
+		"columns": {
+			"map_id": {
+				"allow_null": false,
+				"auto_increment": true,
+				"binary": false,
+				"comment": "",
+				"decimals": null,
+				"default": null,
+				"length": 10,
+				"name": "map_id",
+				"type": "INT",
+				"unsigned": true,
+				"values": [],
+				"zerofill": false
+			},
+			"ips_package_id": {
+				"allow_null": false,
+				"auto_increment": false,
+				"binary": false,
+				"comment": "",
+				"decimals": null,
+				"default": 0,
+				"length": 10,
+				"name": "ips_package_id",
+				"type": "INT",
+				"unsigned": true,
+				"values": [],
+				"zerofill": false
+			},
+			"polar_product_id": {
+				"allow_null": false,
+				"auto_increment": false,
+				"binary": false,
+				"comment": "",
+				"decimals": null,
+				"default": "",
+				"length": 64,
+				"name": "polar_product_id",
+				"type": "VARCHAR",
+				"unsigned": false,
+				"values": [],
+				"zerofill": false
+			},
+			"product_name": {
+				"allow_null": false,
+				"auto_increment": false,
+				"binary": false,
+				"comment": "",
+				"decimals": null,
+				"default": "",
+				"length": 255,
+				"name": "product_name",
+				"type": "VARCHAR",
+				"unsigned": false,
+				"values": [],
+				"zerofill": false
+			},
+			"created_at": {
+				"allow_null": false,
+				"auto_increment": false,
+				"binary": false,
+				"comment": "",
+				"decimals": null,
+				"default": 0,
+				"length": 10,
+				"name": "created_at",
+				"type": "INT",
+				"unsigned": false,
+				"values": [],
+				"zerofill": false
+			},
+			"updated_at": {
+				"allow_null": false,
+				"auto_increment": false,
+				"binary": false,
+				"comment": "",
+				"decimals": null,
+				"default": 0,
+				"length": 10,
+				"name": "updated_at",
+				"type": "INT",
+				"unsigned": false,
+				"values": [],
+				"zerofill": false
+			}
+		},
+		"indexes": {
+			"PRIMARY": {
+				"type": "primary",
+				"name": "PRIMARY",
+				"columns": ["map_id"],
+				"length": [null]
+			},
+			"idx_ips_package": {
+				"type": "unique",
+				"name": "idx_ips_package",
+				"columns": ["ips_package_id"],
+				"length": [null]
+			},
+			"idx_polar_product": {
+				"type": "key",
+				"name": "idx_polar_product",
+				"columns": ["polar_product_id"],
+				"length": [null]
+			}
+		}
 	}
 }

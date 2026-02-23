@@ -1,5 +1,61 @@
 # X Polar Checkout App - Changelog
 
+## 2026-02-23 - Unreleased: Checkout Flow Controls + Label Modes
+
+- Added ACP setting `Checkout flow mode`:
+  - `Allow Polar for all carts` (default behavior).
+  - `Hybrid route: show Polar only for single-item carts` (hides Polar in checkout when invoice has more than one payable line).
+- Added ACP setting `Multi-item receipt label mode` for consolidated Polar checkouts:
+  - `Use first item name (legacy)`.
+  - `Use neutral label (Invoice # + item count)`.
+  - `Use item list label (Item A + Item B + ...)`.
+- Added runtime guard in `auth()` for single-item-only mode to prevent direct multi-item authorization if the gateway is forced via non-standard flow.
+- Implemented checkout-label product cache (`xpolarcheckout_checkout_label_products` in datastore) to reuse synthetic Polar products for explicit consolidated receipt titles.
+- Documented official post-dependency goal: migrate from consolidated fallback to native provider-side additive multi-line checkout/invoice parity once Polar supports it.
+
+## 2026-02-23 - v1.0.3: Dynamic Polar Product Mapping
+
+### Feature: Dynamic Product Mapping
+- Polar checkout receipts/emails now show the actual IPS Nexus product name instead of generic "IPS4 NEXUS DEFAULT".
+- New `ensurePolarProduct()` method creates Polar products on-demand at first checkout, cached in `xpc_product_map` table.
+- Package-type invoice items (`\IPS\nexus\extensions\nexus\Item\Package`) are mapped to dedicated Polar products; non-package items (renewals, charges) fall back to the default product.
+- Name sync at checkout time: if the IPS package name has changed since last checkout, the Polar product is PATCHed automatically.
+- Safe catalog placeholder price (EUR 9.99) on Polar products — ad-hoc prices override at checkout, but prevents zero-cost access if someone reaches the product directly on Polar.
+- Non-blocking: all product creation/sync failures are caught and fall back to the default product silently.
+
+### ACP: Product Mappings Viewer
+- New ACP page at `Monitoring > Product Mappings` showing all IPS package ↔ Polar product mappings.
+- Table columns: Package ID, Product Name, Polar Product ID, Last Synced.
+- Quick search by product name.
+- "Sync All Names" button iterates all mappings, fetches current IPS package names, and PATCHes Polar products where names differ.
+
+### Multi-Item Checkout Consolidation
+- `auth()` iterates invoice items and creates Polar products for each package-type item on-demand.
+- **Polar API limitation**: multiple products in `products[]` are treated as radio-button choices, not line items. Fix: when an invoice has multiple items, all are consolidated into the first product's Polar entry with the combined total amount.
+- Single-item invoices show the correct product name at the correct price (most common case).
+- Multi-item invoices show the first item's product name at the combined invoice total.
+- Checkout metadata includes `ips_item_names` (up to 3) for audit trail.
+
+### New DB Table
+- `xpc_product_map`: `map_id`, `ips_package_id` (UNIQUE), `polar_product_id`, `product_name`, `created_at`, `updated_at`.
+
+### Scope Requirement
+- Polar API token needs `products:write` scope for product creation/update. If token lacks this scope, product creation fails silently and falls back to default.
+
+## 2026-02-23 - v1.0.2: Webhook Processing Fixes
+
+### Critical Fix: Transaction Processing Lock
+- Fixed `acquireTransactionProcessingLock()` and `releaseTransactionProcessingLock()` — replaced `\IPS\Db::i()->select()` with `\IPS\Db::i()->query()` for MySQL `GET_LOCK()`/`RELEASE_LOCK()` calls. IPS4's `convert_hook_Db` overrides `select()` and requires at least 2 arguments (columns + table), causing every single-argument call to throw `Too few arguments` silently. This prevented ALL webhook events from being processed since initial deployment.
+
+### Fix: Transaction Resolution Gap
+- Expanded `resolveTransactionFromPayload()` to also match `checkout_id` and `checkout.*` event object IDs against `t_gw_id`. Previously only `order_id` and `order.*` IDs were tried, but `auth()` stores the Polar checkout UUID as `t_gw_id` — so early `checkout.*` events could not find their transaction when metadata was missing.
+
+### Verified (2026-02-23)
+- Full end-to-end paid checkout: Store product → Cart → IPS Checkout → Polar sandbox hosted checkout → test card payment → webhook delivery → transaction `okay` (paid) + invoice `paid`.
+- 7 webhook events processed on single transaction: `checkout.created`, `checkout.updated` (x2), `order.updated` (x2), `order.paid`, `order.created`.
+- Settlement snapshot correctly captured: subtotal/tax/total with `has_total_mismatch: false`.
+- `t_gw_id` updated from checkout UUID to Polar order UUID on `order.*` events.
+
 ## 2026-02-22 - Webhook Endpoint Lifecycle + Runtime Scope Diagnosis
 
 - Implemented webhook endpoint lifecycle wiring in `app-source/sources/XPolarCheckout/XPolarCheckout.php`:

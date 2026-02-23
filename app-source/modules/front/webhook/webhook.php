@@ -230,21 +230,27 @@ class _webhook extends \IPS\Dispatcher\Controller
             }
         }
 
-        $providerOrderId = NULL;
-        if ( isset( $eventObject['order_id'] ) && \is_scalar( $eventObject['order_id'] ) )
+        /* Try matching by order_id, checkout_id, or event object id against t_gw_id */
+        $gwIdCandidates = array();
+        if ( isset( $eventObject['order_id'] ) && \is_scalar( $eventObject['order_id'] ) && (string) $eventObject['order_id'] !== '' )
         {
-            $providerOrderId = (string) $eventObject['order_id'];
+            $gwIdCandidates[] = (string) $eventObject['order_id'];
         }
-        elseif ( isset( $eventObject['id'] ) && \is_scalar( $eventObject['id'] ) && \strpos( $eventType, 'order.' ) === 0 )
+        if ( isset( $eventObject['checkout_id'] ) && \is_scalar( $eventObject['checkout_id'] ) && (string) $eventObject['checkout_id'] !== '' )
         {
-            $providerOrderId = (string) $eventObject['id'];
+            $gwIdCandidates[] = (string) $eventObject['checkout_id'];
+        }
+        if ( isset( $eventObject['id'] ) && \is_scalar( $eventObject['id'] ) && (string) $eventObject['id'] !== ''
+            && ( \strpos( $eventType, 'order.' ) === 0 || \strpos( $eventType, 'checkout.' ) === 0 ) )
+        {
+            $gwIdCandidates[] = (string) $eventObject['id'];
         }
 
-        if ( $providerOrderId !== NULL && $providerOrderId !== '' )
+        foreach ( $gwIdCandidates as $gwIdCandidate )
         {
             try
             {
-                $trId = \IPS\Db::i()->select( 't_id', 'nexus_transactions', array( 't_gw_id=?', $providerOrderId ) )->first();
+                $trId = \IPS\Db::i()->select( 't_id', 'nexus_transactions', array( 't_gw_id=?', $gwIdCandidate ) )->first();
                 return \IPS\nexus\Transaction::load( $trId );
             }
             catch ( \Exception $e ) {}
@@ -347,8 +353,9 @@ class _webhook extends \IPS\Dispatcher\Controller
         try
         {
             $lockName = $this->buildTransactionProcessingLockName( $transactionId );
-            $result = \IPS\Db::i()->select( "GET_LOCK('" . $lockName . "', 0)" )->first();
-            return (int) $result === 1;
+            $stmt = \IPS\Db::i()->query( "SELECT GET_LOCK('" . \IPS\Db::i()->real_escape_string( $lockName ) . "', 0)" );
+            $row = $stmt->fetch_row();
+            return ( \is_array( $row ) && isset( $row[0] ) && (int) $row[0] === 1 );
         }
         catch ( \Throwable $e )
         {
@@ -367,7 +374,7 @@ class _webhook extends \IPS\Dispatcher\Controller
         try
         {
             $lockName = $this->buildTransactionProcessingLockName( $transactionId );
-            \IPS\Db::i()->select( "RELEASE_LOCK('" . $lockName . "')" )->first();
+            \IPS\Db::i()->query( "SELECT RELEASE_LOCK('" . \IPS\Db::i()->real_escape_string( $lockName ) . "')" );
         }
         catch ( \Throwable $e ) {}
     }

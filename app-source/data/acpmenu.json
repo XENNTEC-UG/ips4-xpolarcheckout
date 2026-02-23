@@ -13,6 +13,13 @@
             "do": "",
             "restriction": "forensics_view",
             "subcontrollers": ""
+        },
+        "products": {
+            "tab": "nexus",
+            "controller": "products",
+            "do": "",
+            "restriction": "products_view",
+            "subcontrollers": ""
         }
     }
 }

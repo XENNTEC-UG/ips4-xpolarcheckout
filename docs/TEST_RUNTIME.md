@@ -1,6 +1,6 @@
 # X Polar Checkout Runtime Verification
 
-Current runtime baseline is Phase 2 in-progress (`v1.0.1` / `10001`).
+Current runtime baseline is `v1.0.3` / `10003`.
 
 ## Environment Preconditions
 
@@ -49,10 +49,55 @@ Current runtime baseline is Phase 2 in-progress (`v1.0.1` / `10001`).
     - `amount_total_minor`
     - `amount_refunded_minor`
 
+## End-to-End Paid Checkout (v1.0.2, 2026-02-23)
+
+- Product: MASSITEM3 (1.00 EUR), Invoice #102, Transaction #79
+- Flow: Store → Cart → Checkout → Polar sandbox hosted checkout → test card (4242) → payment success → webhook processing → transaction `okay` (paid)
+- 7 webhook events processed: `checkout.created`, `checkout.updated` (x2), `order.updated` (x2), `order.paid`, `order.created`
+- `t_gw_id` updated from checkout UUID to order UUID (`637ac7ff-f516-4bf3-ba5b-c4e230b9ced5`)
+- Settlement snapshot: subtotal EUR 1.00, tax EUR 0.19, total EUR 1.19, `has_total_mismatch: false`, `total_difference_tax_explained: true`
+
+## Dynamic Product Mapping + Multi-Item Checkout (v1.0.3, 2026-02-23)
+
+### Single-Item (previous session)
+- Product: MASSITEM3 (1.00 EUR), Invoice #104, Transaction #81
+- Polar checkout displayed "MASSITEM3" instead of "IPS4 NEXUS DEFAULT"
+- `xpc_product_map` row created: package 8 → Polar product `3187eb62-19a7-4878-959e-276d38bd91e0`
+- Mapping reused on subsequent checkout (no duplicate product creation)
+
+### Multi-Item Consolidation
+- Cart: Premium 30D (15 EUR) + Starter 7D (5 EUR) + MASSITEM5 (1 EUR) = 21 EUR
+- Invoice #106, Transaction #83
+- **Finding**: Polar treats multiple products in `products[]` as radio-button choices, not line items. Fix: consolidate multi-item invoices into the first product with combined total.
+- Polar checkout displayed: "Premium 30D" at €21 subtotal (correct combined amount)
+- Transaction #83: status `okay` (paid), amount 21.00 EUR
+- All 3 purchases created: #239 (Premium 30D), #240 (Starter 7D), #241 (MASSITEM5)
+- `xpc_product_map` has 4 rows total: MASSITEM3, Premium 30D, Starter 7D, MASSITEM5
+- ACP Product Mappings viewer shows all 4 entries with correct names, Polar IDs, and timestamps
+
+## Checkout Flow Controls + Label Modes (Unreleased, 2026-02-23)
+
+### Hybrid Route Mode
+- ACP setting `Checkout flow mode` supports:
+  - `Allow Polar for all carts`
+  - `Hybrid route: show Polar only for single-item carts`
+- In hybrid mode:
+  - single-item invoice -> Polar appears in checkout payment methods.
+  - multi-item invoice -> Polar is hidden from checkout payment methods.
+- Defense-in-depth: if a multi-item payment attempts to force Polar in hybrid mode, gateway returns `xpolarcheckout_checkout_flow_single_item_only_error`.
+
+### Multi-Item Label Modes
+- ACP setting `Multi-item receipt label mode` supports:
+  - first item (legacy),
+  - neutral invoice/count label,
+  - explicit item-list label.
+- Non-legacy label modes create/reuse synthetic Polar products for display labels (datastore key: `xpolarcheckout_checkout_label_products`).
+- If product creation is unavailable (missing `products:write`), checkout falls back safely to mapped/legacy behavior.
+
 ## Pending Suite Expansion
 
 - Webhook endpoint lifecycle end-to-end verification in ACP (blocked by current token permissions on `/v1/webhooks/endpoints/*`).
-- B3 end-to-end paid checkout + successful refund validation (real sandbox paid order fixture).
+- End-to-end refund validation against paid order (Transaction #79, order `637ac7ff-f516-4bf3-ba5b-c4e230b9ced5`).
 - Full checkout/refund runtime matrix with non-EUR test fixture (to confirm mismatch guard UX/messages in storefront checkout flow).
 
 ## Automated Checks Already Executed

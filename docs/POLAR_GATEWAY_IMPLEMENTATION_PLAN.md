@@ -479,3 +479,69 @@ Rollback:
 - B3: complete end-to-end paid checkout + successful refund validation with a real sandbox paid order (`gw_id`).
 - Refresh Polar token with webhook endpoint scopes (`webhooks:read`, `webhooks:write`), then re-run ACP save + integrity sync to verify persisted `webhook_endpoint_id`.
 - Full `docs/TEST_RUNTIME.md` smoke matrix execution with real paid + refund fixtures.
+
+## 18) Multi-Cart Interim Strategy + Official Goal
+
+### Evaluated Options (4)
+
+1. **Native additive multi-line checkout in Polar (target state)**
+   - One Polar checkout session with true line items (`Product A`, `Product B`, `Addon C`) in a single provider invoice.
+   - Status: blocked until Polar exposes additive multi-line cart/invoice support.
+
+2. **Consolidated single-line Polar checkout + IPS itemized invoice**
+   - Send one Polar line for combined total; IPS/Nexus remains system-of-record for itemized invoice lines and fulfillment.
+   - Status: implemented fallback path.
+
+3. **Hybrid route (single-item -> Polar, multi-item -> alternate gateway)**
+   - Keep Polar available for single-item carts only, hide it for multi-item carts.
+   - Status: implemented via ACP checkout flow mode.
+
+4. **Split into multiple Polar checkouts/orders from one IPS invoice**
+   - Create one provider order per cart line and try to stitch them into one UX.
+   - Status: rejected for now due to high payment friction, reconciliation complexity, and refund ambiguity.
+
+### Interim Strategy (Implemented)
+
+- Add ACP-controlled checkout routing while Polar lacks additive multi-line cart checkout:
+  - `Allow Polar for all carts`
+  - `Hybrid route: show Polar only for single-item carts`
+- In hybrid mode, Polar is hidden for multi-item invoices during checkout payment-method selection.
+- For consolidated multi-item Polar payments, support ACP-controlled label modes:
+  - legacy first-item
+  - invoice count label
+  - item-list label
+
+### Official Goal (Pending Polar Product Capability)
+
+If/when Polar ships Stripe-like additive cart support, `xpolarcheckout` target is:
+
+1. Use one checkout session containing all invoice lines as additive items (not product-switch options).
+2. Keep one payment while preserving provider-side itemized invoice/receipt lines:
+   - item name
+   - quantity
+   - unit amount
+   - line total
+   - subtotal/tax/total
+3. Persist stable line identifiers in metadata/webhook snapshots for reconciliation.
+4. Support line-aware partial refunds from IPS with deterministic state mapping.
+5. Decommission consolidation-specific fallbacks (hybrid hiding and synthetic label products) behind migration-safe feature flags.
+
+### Official Target UX Contract
+
+- Checkout: one payment, all cart lines visible before payment confirmation.
+- Provider invoice/receipt: clear line-item breakdown matching IPS invoice:
+  - name
+  - quantity
+  - unit amount
+  - line amount
+  - subtotal/tax/total
+- Refunds: per-line partial refund support without losing IPS↔provider reconciliation integrity.
+- Support/finance: no hidden/derived line expansion required to explain customer charges.
+
+### Adoption Gate
+
+- Polar feature request has been submitted externally and is awaiting response.
+- Implementation will switch from interim strategy to native multi-line mode only after:
+  - official API support is GA/stable,
+  - sandbox and production smoke matrix pass in `docs/TEST_RUNTIME.md`,
+  - no regressions in webhook idempotency and refund transitions.

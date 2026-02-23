@@ -5,6 +5,9 @@
         },
         "forensics": {
             "forensics_view": "forensics_view"
+        },
+        "products": {
+            "products_view": "products_view"
         }
     }
 }
