@@ -1,5 +1,49 @@
 # X Polar Checkout App - Changelog
 
+## 2026-02-23 - v1.0.5: Polar Invoice Generation + Enriched Snapshots
+
+### Polar Invoice Generation
+- Added `triggerInvoiceGeneration()` gateway method — fires `POST /v1/orders/{id}/invoice` (async, 202) after `order.paid` to request Polar-hosted invoice creation.
+- Added `fetchInvoiceUrl()` gateway method — fetches `GET /v1/orders/{id}/invoice` URL when `order.updated` arrives with `is_invoice_generated=true`.
+- Invoice URL persisted to `customer_invoice_url` in both transaction `t_extra` and invoice `i_status_extra` snapshots.
+- URL preservation guard: later webhook events (e.g. `order.refunded`) no longer overwrite a previously-fetched invoice URL.
+
+### Enriched Settlement Snapshots
+- Added 13+ new fields to `buildPolarSnapshot()` from the Polar Order model:
+  - `discount_amount_minor/display` — provider-side discount amount.
+  - `net_amount_minor/display` — net amount after discount.
+  - `refunded_tax_amount_minor/display` — tax portion of refunds.
+  - `polar_invoice_number` — Polar-generated invoice number.
+  - `billing_name`, `billing_reason` — billing context from order.
+  - `is_invoice_generated` — invoice generation status flag.
+  - `customer_email`, `customer_name` — customer details from order.
+  - `customer_tax_id` — array of tax ID strings from customer object.
+  - `discount_name`, `discount_code` — coupon details from discount object.
+  - `line_items` — array of `{label, amount, tax_amount}` from order items.
+- Replaced dead URL extraction code with explicit NULL placeholders and proper API-driven URL fetch.
+
+### Invoice View Enhancements
+- Discount section now uses explicit `discount_amount_minor` from provider (falls back to computed).
+- Added discount name/code display row in Charge Summary.
+- Added refunded tax row when refunded tax amount is present.
+- Added Polar invoice number, billing name, customer email, billing reason, and customer tax ID rows in Payment & References.
+- Print hook and clients settle hook updated with matching enriched fields.
+
+### Language Strings
+- Added 13 new language keys for enriched snapshot display (discount, net amount, invoice number, billing, customer, tax, billing reason labels).
+
+## 2026-02-23 - v1.0.4: Stripe-Parity Invoice View
+
+### Invoice View (Stripe parity)
+- Implemented full two-column invoice layout matching xstripecheckout's UX: Order Details (left) + Polar Charge Summary (right).
+- Charge Summary box: subtotal, discount (computed), net subtotal, tax, total charged (bold divider), refunded amount (red), provider status badge (color-coded: paid/refunded/partially_refunded/pending).
+- Payment & References box: captured timestamp, Polar Order ID with View Invoice / Download PDF buttons, Polar Checkout ID with View Receipt button, source-of-truth footer.
+- Tax-explains-difference info message and total mismatch warning matching Stripe's pattern.
+- Global order details enhancements: products subtotal before coupons, tag icon replacement, green coupon pricing, duplicate coupon section hiding. Idempotency guard prevents double-processing when both Stripe and Polar apps are active.
+- Clients page settlement hook: enhanced order total box showing provider total (incl. tax) + IPS invoice total comparison with full status-dependent action buttons.
+- Print invoice hook: charge summary + payment references tables in print-friendly format.
+- Added 7 new language strings for provider status badges and refund display.
+
 ## 2026-02-23 - Unreleased: Checkout Flow Controls + Label Modes
 
 - Added ACP setting `Checkout flow mode`:

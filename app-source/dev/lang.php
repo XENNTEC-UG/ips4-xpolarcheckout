@@ -18,7 +18,7 @@ $lang = array(
 'xpolarcheckout_multi_item_label_mode_desc'	=> 'Applies only when Polar is used for multi-item invoices. Non-default modes create/reuse checkout label products in Polar so the combined invoice line is more explicit.',
 'xpolarcheckout_multi_item_label_mode_first_item'	=> 'Use first item name (legacy)',
 'xpolarcheckout_multi_item_label_mode_invoice_count'	=> 'Use neutral label (Invoice # + item count)',
-'xpolarcheckout_multi_item_label_mode_item_list'	=> 'Use item list label (Item A + Item B + ...)',
+'xpolarcheckout_multi_item_label_mode_item_list'	=> 'Use item list label (Item A (price), Item B (price), ...)',
 'xpolarcheckout_presentment_currency'	=> 'Default presentment currency',
 'xpolarcheckout_presentment_currency_desc'	=> '3-letter currency code (for example EUR). Saved in ACP and synced to your Polar organization default presentment currency.',
 'xpolarcheckout_presentment_currency_invalid'	=> 'Default presentment currency must be a 3-letter code (for example EUR).',
@@ -125,6 +125,13 @@ $lang = array(
 'xpolarcheckout_provider_charged_label'	=> 'Charged via Polar (incl. tax)',
 'xpolarcheckout_ips_invoice_total_label'	=> 'Invoice total (IPS)',
 'xpolarcheckout_settle_net_subtotal'	=> 'Net subtotal',
+'xpolarcheckout_settle_provider_status'	=> 'Status',
+'xpolarcheckout_settle_refunded_amount'	=> 'Refunded',
+'xpolarcheckout_status_paid'	=> 'Paid',
+'xpolarcheckout_status_refunded'	=> 'Refunded',
+'xpolarcheckout_status_partially_refunded'	=> 'Partially Refunded',
+'xpolarcheckout_status_pending'	=> 'Pending',
+'xpolarcheckout_status_unknown'	=> 'Unknown',
 
 /* Product Mappings */
 'menu__xpolarcheckout_monitoring_products'	=> 'Product Mappings',
@@ -159,5 +166,20 @@ $lang = array(
 'xpc_forensics_filter_missing_signature'	=> 'Missing Signature',
 'xpc_forensics_filter_invalid_signature'	=> 'Invalid Signature',
 'xpc_forensics_filter_timestamp_too_old'	=> 'Timestamp Too Old',
+
+/* v1.0.5 — Enriched snapshot display */
+'xpolarcheckout_settle_discount_label'	=> 'Discount',
+'xpolarcheckout_settle_discount_code'	=> 'Coupon code',
+'xpolarcheckout_settle_net_amount'	=> 'Net Amount',
+'xpolarcheckout_settle_invoice_number'	=> 'Polar Invoice',
+'xpolarcheckout_settle_billing_name'	=> 'Billing Name',
+'xpolarcheckout_settle_billing_reason'	=> 'Billing Reason',
+'xpolarcheckout_settle_customer_email'	=> 'Customer Email',
+'xpolarcheckout_settle_customer_tax_id'	=> 'Tax ID',
+'xpolarcheckout_settle_refunded_tax'	=> 'Tax Refunded',
+'xpolarcheckout_billing_reason_purchase'	=> 'Purchase',
+'xpolarcheckout_billing_reason_subscription_create'	=> 'New Subscription',
+'xpolarcheckout_billing_reason_subscription_cycle'	=> 'Subscription Renewal',
+'xpolarcheckout_billing_reason_subscription_update'	=> 'Subscription Update',
 
 );

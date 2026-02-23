@@ -561,7 +561,7 @@ class _XPolarCheckout extends \IPS\nexus\Gateway
      */
     protected function buildConsolidatedCheckoutLabel( \IPS\nexus\Invoice $invoice, array $itemNames, $labelMode )
     {
-        $labelItems = array();
+        $labelLines = array();
         $lineCount = 0;
 
         foreach ( $invoice->items as $invoiceItem )
@@ -584,18 +584,26 @@ class _XPolarCheckout extends \IPS\nexus\Gateway
             $name = isset( $invoiceItem->name ) ? \trim( (string) $invoiceItem->name ) : '';
             if ( $name === '' )
             {
-                $name = 'Invoice #' . (int) $invoice->id;
+                $name = 'Item';
             }
 
             $quantity = isset( $invoiceItem->quantity ) ? \max( 1, (int) $invoiceItem->quantity ) : 1;
-            if ( !isset( $labelItems[ $name ] ) )
+
+            $priceDisplay = '';
+            try
             {
-                $labelItems[ $name ] = 0;
+                $priceDisplay = (string) $invoiceItem->price;
             }
-            $labelItems[ $name ] += $quantity;
+            catch ( \Exception $e ) {}
+
+            $labelLines[] = array(
+                'name' => $name,
+                'quantity' => $quantity,
+                'price' => $priceDisplay,
+            );
         }
 
-        if ( empty( $labelItems ) )
+        if ( empty( $labelLines ) )
         {
             foreach ( $itemNames as $name )
             {
@@ -604,13 +612,9 @@ class _XPolarCheckout extends \IPS\nexus\Gateway
                 {
                     continue;
                 }
-                if ( !isset( $labelItems[ $name ] ) )
-                {
-                    $labelItems[ $name ] = 0;
-                }
-                $labelItems[ $name ]++;
+                $labelLines[] = array( 'name' => $name, 'quantity' => 1, 'price' => '' );
             }
-            $lineCount = \count( $labelItems );
+            $lineCount = \count( $labelLines );
         }
 
         $label = '';
@@ -622,22 +626,18 @@ class _XPolarCheckout extends \IPS\nexus\Gateway
         elseif ( $labelMode === static::MULTI_ITEM_LABEL_MODE_ITEM_LIST )
         {
             $parts = array();
-            foreach ( $labelItems as $name => $quantity )
+            foreach ( $labelLines as $line )
             {
-                $parts[] = ( $quantity > 1 ? $quantity . 'x ' : '' ) . $name;
-            }
-            $label = \implode( ' + ', $parts );
-
-            if ( \mb_strlen( $label ) > 120 )
-            {
-                $shortParts = \array_slice( $parts, 0, 3 );
-                $remaining = \count( $parts ) - \count( $shortParts );
-                $label = \implode( ' + ', $shortParts );
-                if ( $remaining > 0 )
+                $part = ( $line['quantity'] > 1 ? $line['quantity'] . 'x ' : '' ) . $line['name'];
+                if ( $line['price'] !== '' )
                 {
-                    $label .= ' +' . $remaining . ' more';
+                    $part .= $line['quantity'] > 1
+                        ? ' (' . $line['price'] . ' each)'
+                        : ' (' . $line['price'] . ')';
                 }
+                $parts[] = $part;
             }
+            $label = \implode( ', ', $parts );
         }
         else
         {
@@ -654,7 +654,7 @@ class _XPolarCheckout extends \IPS\nexus\Gateway
             $label .= ' order';
         }
 
-        return \mb_substr( $label, 0, 120 );
+        return $label;
     }
 
     /**
@@ -1469,5 +1469,102 @@ class _XPolarCheckout extends \IPS\nexus\Gateway
         }
 
         return 'other';
+    }
+
+    /**
+     * Trigger asynchronous invoice generation for a Polar order.
+     *
+     * Polar returns HTTP 202 (Accepted) — the invoice URL becomes available
+     * when order.updated fires with is_invoice_generated = true.
+     *
+     * @param   string  $orderId
+     * @param   array   $settings
+     * @return  bool
+     */
+    public function triggerInvoiceGeneration( $orderId, array $settings )
+    {
+        $orderId = \trim( (string) $orderId );
+        if ( $orderId === '' )
+        {
+            return FALSE;
+        }
+
+        $accessToken = isset( $settings['access_token'] ) ? \trim( (string) $settings['access_token'] ) : '';
+        if ( $accessToken === '' )
+        {
+            return FALSE;
+        }
+
+        $apiBase = static::resolveApiBase( $settings );
+
+        try
+        {
+            $response = \IPS\Http\Url::external( $apiBase . '/orders/' . $orderId . '/invoice' )
+                ->request( 10 )
+                ->setHeaders( array(
+                    'Authorization' => 'Bearer ' . $accessToken,
+                    'Content-Type'  => 'application/json',
+                    'Accept'        => 'application/json',
+                ) )
+                ->post( '' );
+
+            $statusCode = (int) $response->httpResponseCode;
+            return ( $statusCode >= 200 && $statusCode < 300 );
+        }
+        catch ( \Exception $e )
+        {
+            \IPS\Log::log( $e, 'xpolarcheckout_invoice_gen' );
+            return FALSE;
+        }
+    }
+
+    /**
+     * Fetch the generated invoice URL for a Polar order.
+     *
+     * Only works after is_invoice_generated = true on the order.
+     *
+     * @param   string  $orderId
+     * @param   array   $settings
+     * @return  string|NULL
+     */
+    public function fetchInvoiceUrl( $orderId, array $settings )
+    {
+        $orderId = \trim( (string) $orderId );
+        if ( $orderId === '' )
+        {
+            return NULL;
+        }
+
+        $accessToken = isset( $settings['access_token'] ) ? \trim( (string) $settings['access_token'] ) : '';
+        if ( $accessToken === '' )
+        {
+            return NULL;
+        }
+
+        $apiBase = static::resolveApiBase( $settings );
+
+        try
+        {
+            $response = \IPS\Http\Url::external( $apiBase . '/orders/' . $orderId . '/invoice' )
+                ->request( 10 )
+                ->setHeaders( array(
+                    'Authorization' => 'Bearer ' . $accessToken,
+                    'Accept'        => 'application/json',
+                ) )
+                ->get()
+                ->decodeJson();
+
+            if ( \is_array( $response ) && isset( $response['url'] ) && \is_string( $response['url'] ) && $response['url'] !== '' )
+            {
+                return $response['url'];
+            }
+
+            return NULL;
+        }
+        catch ( \Exception $e )
+        {
+            \IPS\Log::log( $e, 'xpolarcheckout_invoice_gen' );
+            return NULL;
+        }
     }
 }

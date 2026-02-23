@@ -134,6 +134,18 @@ class _webhook extends \IPS\Dispatcher\Controller
             $this->persistPolarSnapshot( $transaction, $payload, $eventType );
             $this->markWebhookEventProcessed( $transaction, $eventId, $eventType );
 
+            /* Trigger Polar invoice generation after order.paid (non-blocking) */
+            if ( $eventType === 'order.paid' )
+            {
+                $this->triggerPolarInvoiceGeneration( $transaction, $eventObject );
+            }
+
+            /* Fetch and persist Polar invoice URL when generation is complete */
+            if ( $eventType === 'order.updated' && isset( $eventObject['is_invoice_generated'] ) && $eventObject['is_invoice_generated'] )
+            {
+                $this->fetchAndPersistInvoiceUrl( $transaction, $eventObject );
+            }
+
             \IPS\Output::i()->sendOutput( 'SUCCESS', 200 );
             return;
         }
@@ -885,10 +897,44 @@ class _webhook extends \IPS\Dispatcher\Controller
             'amount_tax_display' => $this->formatMinorUnitDisplay( $amountTaxMinor, $currency ),
             'amount_total_display' => $this->formatMinorUnitDisplay( $amountTotalMinor, $currency ),
             'amount_refunded_display' => $this->formatMinorUnitDisplay( $amountRefundedMinor, $currency ),
-            'customer_invoice_url' => $this->normalizePublicUrl( isset( $eventObject['invoice_url'] ) ? $eventObject['invoice_url'] : NULL ),
-            'customer_invoice_pdf_url' => $this->normalizePublicUrl( isset( $eventObject['invoice_pdf_url'] ) ? $eventObject['invoice_pdf_url'] : NULL ),
-            'customer_receipt_url' => $this->normalizePublicUrl( isset( $eventObject['receipt_url'] ) ? $eventObject['receipt_url'] : NULL ),
+            'customer_invoice_url' => NULL,
+            'customer_invoice_pdf_url' => NULL,
+            'customer_receipt_url' => NULL,
+
+            /* Enriched fields from Polar Order model (v1.0.5) */
+            'discount_amount_minor' => $this->extractMinorUnitByKeys( $eventObject, array( 'discount_amount' ) ),
+            'discount_amount_display' => $this->formatMinorUnitDisplay(
+                $this->extractMinorUnitByKeys( $eventObject, array( 'discount_amount' ) ), $currency
+            ),
+            'net_amount_minor' => $this->extractMinorUnitByKeys( $eventObject, array( 'net_amount' ) ),
+            'net_amount_display' => $this->formatMinorUnitDisplay(
+                $this->extractMinorUnitByKeys( $eventObject, array( 'net_amount' ) ), $currency
+            ),
+            'refunded_tax_amount_minor' => $this->extractMinorUnitByKeys( $eventObject, array( 'refunded_tax_amount' ) ),
+            'refunded_tax_amount_display' => $this->formatMinorUnitDisplay(
+                $this->extractMinorUnitByKeys( $eventObject, array( 'refunded_tax_amount' ) ), $currency
+            ),
+            'polar_invoice_number' => ( isset( $eventObject['invoice_number'] ) && \is_scalar( $eventObject['invoice_number'] ) ) ? (string) $eventObject['invoice_number'] : NULL,
+            'billing_name' => ( isset( $eventObject['billing_name'] ) && \is_scalar( $eventObject['billing_name'] ) ) ? (string) $eventObject['billing_name'] : NULL,
+            'billing_reason' => ( isset( $eventObject['billing_reason'] ) && \is_scalar( $eventObject['billing_reason'] ) ) ? (string) $eventObject['billing_reason'] : NULL,
+            'is_invoice_generated' => isset( $eventObject['is_invoice_generated'] ) ? (bool) $eventObject['is_invoice_generated'] : NULL,
+            'customer_email' => ( isset( $eventObject['customer']['email'] ) && \is_scalar( $eventObject['customer']['email'] ) ) ? (string) $eventObject['customer']['email'] : NULL,
+            'customer_name' => ( isset( $eventObject['customer']['name'] ) && \is_scalar( $eventObject['customer']['name'] ) ) ? (string) $eventObject['customer']['name'] : NULL,
+            'customer_tax_id' => $this->extractCustomerTaxIds( $eventObject ),
+            'discount_name' => ( isset( $eventObject['discount']['name'] ) && \is_scalar( $eventObject['discount']['name'] ) ) ? (string) $eventObject['discount']['name'] : NULL,
+            'discount_code' => ( isset( $eventObject['discount']['code'] ) && \is_scalar( $eventObject['discount']['code'] ) ) ? (string) $eventObject['discount']['code'] : NULL,
+            'line_items' => $this->extractLineItems( $eventObject ),
         );
+
+        /* Preserve previously-fetched invoice URL if current payload has none */
+        $existingExtra = $transaction->extra;
+        if ( $snapshot['customer_invoice_url'] === NULL
+            && isset( $existingExtra['xpolarcheckout_snapshot']['customer_invoice_url'] )
+            && \is_string( $existingExtra['xpolarcheckout_snapshot']['customer_invoice_url'] )
+            && $existingExtra['xpolarcheckout_snapshot']['customer_invoice_url'] !== '' )
+        {
+            $snapshot['customer_invoice_url'] = $existingExtra['xpolarcheckout_snapshot']['customer_invoice_url'];
+        }
 
         return $this->applyIpsInvoiceTotalComparison( $snapshot, $transaction );
     }
@@ -1035,6 +1081,78 @@ class _webhook extends \IPS\Dispatcher\Controller
     }
 
     /**
+     * Extract customer tax ID(s) from event payload.
+     *
+     * @param  array $eventObject
+     * @return array
+     */
+    protected function extractCustomerTaxIds( array $eventObject )
+    {
+        if ( !isset( $eventObject['customer']['tax_id'] ) )
+        {
+            return array();
+        }
+
+        $taxId = $eventObject['customer']['tax_id'];
+        if ( \is_array( $taxId ) )
+        {
+            $ids = array();
+            foreach ( $taxId as $id )
+            {
+                if ( \is_scalar( $id ) && (string) $id !== '' )
+                {
+                    $ids[] = (string) $id;
+                }
+            }
+            return $ids;
+        }
+
+        if ( \is_scalar( $taxId ) && (string) $taxId !== '' )
+        {
+            return array( (string) $taxId );
+        }
+
+        return array();
+    }
+
+    /**
+     * Extract line items from Polar order items array.
+     *
+     * @param  array $eventObject
+     * @return array
+     */
+    protected function extractLineItems( array $eventObject )
+    {
+        if ( !isset( $eventObject['items'] ) || !\is_array( $eventObject['items'] ) )
+        {
+            return array();
+        }
+
+        $items = array();
+        foreach ( $eventObject['items'] as $item )
+        {
+            if ( !\is_array( $item ) )
+            {
+                continue;
+            }
+
+            $label = '';
+            if ( isset( $item['label'] ) && \is_scalar( $item['label'] ) )
+            {
+                $label = (string) $item['label'];
+            }
+
+            $items[] = array(
+                'label' => $label,
+                'amount' => ( isset( $item['amount'] ) && \is_numeric( $item['amount'] ) ) ? (int) $item['amount'] : NULL,
+                'tax_amount' => ( isset( $item['tax_amount'] ) && \is_numeric( $item['tax_amount'] ) ) ? (int) $item['tax_amount'] : NULL,
+            );
+        }
+
+        return $items;
+    }
+
+    /**
      * Log webhook forensic event.
      *
      * @param string      $failureReason
@@ -1065,6 +1183,128 @@ class _webhook extends \IPS\Dispatcher\Controller
             ) );
         }
         catch ( \Throwable $e ) {}
+    }
+
+    /**
+     * Trigger Polar invoice generation for a paid order (non-blocking).
+     *
+     * @param \IPS\nexus\Transaction $transaction
+     * @param array                  $eventObject
+     * @return void
+     */
+    protected function triggerPolarInvoiceGeneration( \IPS\nexus\Transaction $transaction, array $eventObject )
+    {
+        try
+        {
+            $orderId = $this->extractOrderId( $eventObject, TRUE );
+            if ( !$orderId && !empty( $transaction->gw_id ) )
+            {
+                $orderId = (string) $transaction->gw_id;
+            }
+
+            if ( !$orderId )
+            {
+                return;
+            }
+
+            $method = $transaction->method;
+            if ( !( $method instanceof \IPS\xpolarcheckout\XPolarCheckout ) )
+            {
+                return;
+            }
+
+            $settings = \json_decode( $method->settings, TRUE );
+            if ( !\is_array( $settings ) )
+            {
+                return;
+            }
+
+            $method->triggerInvoiceGeneration( $orderId, $settings );
+        }
+        catch ( \Throwable $e )
+        {
+            \IPS\Log::log( $e, 'xpolarcheckout_invoice_gen' );
+        }
+    }
+
+    /**
+     * Fetch Polar invoice URL and update existing snapshot (non-blocking).
+     *
+     * Called when order.updated arrives with is_invoice_generated = true.
+     *
+     * @param \IPS\nexus\Transaction $transaction
+     * @param array                  $eventObject
+     * @return void
+     */
+    protected function fetchAndPersistInvoiceUrl( \IPS\nexus\Transaction $transaction, array $eventObject )
+    {
+        try
+        {
+            $orderId = $this->extractOrderId( $eventObject, TRUE );
+            if ( !$orderId && !empty( $transaction->gw_id ) )
+            {
+                $orderId = (string) $transaction->gw_id;
+            }
+
+            if ( !$orderId )
+            {
+                return;
+            }
+
+            $method = $transaction->method;
+            if ( !( $method instanceof \IPS\xpolarcheckout\XPolarCheckout ) )
+            {
+                return;
+            }
+
+            $settings = \json_decode( $method->settings, TRUE );
+            if ( !\is_array( $settings ) )
+            {
+                return;
+            }
+
+            $invoiceUrl = $method->fetchInvoiceUrl( $orderId, $settings );
+            if ( $invoiceUrl === NULL )
+            {
+                return;
+            }
+
+            $normalizedUrl = $this->normalizePublicUrl( $invoiceUrl );
+            if ( $normalizedUrl === NULL )
+            {
+                return;
+            }
+
+            /* Update transaction snapshot */
+            $extra = $transaction->extra;
+            if ( isset( $extra['xpolarcheckout_snapshot'] ) && \is_array( $extra['xpolarcheckout_snapshot'] ) )
+            {
+                $extra['xpolarcheckout_snapshot']['customer_invoice_url'] = $normalizedUrl;
+                $transaction->extra = $extra;
+                $transaction->save();
+            }
+
+            /* Update invoice snapshot */
+            try
+            {
+                $invoice = $transaction->invoice;
+                $statusExtra = \is_array( $invoice->status_extra ) ? $invoice->status_extra : array();
+                if ( isset( $statusExtra['xpolarcheckout_snapshot'] ) && \is_array( $statusExtra['xpolarcheckout_snapshot'] ) )
+                {
+                    $statusExtra['xpolarcheckout_snapshot']['customer_invoice_url'] = $normalizedUrl;
+                    $invoice->status_extra = $statusExtra;
+                    $invoice->save();
+                }
+            }
+            catch ( \Throwable $e )
+            {
+                \IPS\Log::log( $e, 'xpolarcheckout_invoice_gen' );
+            }
+        }
+        catch ( \Throwable $e )
+        {
+            \IPS\Log::log( $e, 'xpolarcheckout_invoice_gen' );
+        }
     }
 
     /**

@@ -6,7 +6,7 @@
 
 | Package version | Long version | Source |
 | --- | --- | --- |
-| `1.0.3` | `10003` | `app-source/data/versions.json` |
+| `1.0.5` | `10005` | `app-source/data/versions.json` |
 
 ## Product Positioning
 
@@ -23,6 +23,9 @@
 | Integrity operations center | ACP integrity panel, replay controls, and forensics visibility | Faster incident detection and response |
 | Recovery tooling | Scheduled/manual replay paths plus explicit run telemetry | Lower revenue risk during webhook outages |
 | Dynamic product mapping | On-demand Polar product creation mirroring IPS packages | Correct product names on Polar receipts and emails |
+| Rich invoice view (Stripe parity) | Two-column settlement display with charge summary, payment refs, and status badges | Customer-facing transparency matching Stripe-level invoice detail |
+| Polar invoice generation | Automatic invoice creation on Polar via API after payment | Customers get hosted invoice pages and PDF downloads |
+| Enriched settlement snapshots | 13+ additional fields from Polar Order model (discount, billing, customer, line items) | Complete audit trail with full provider data |
 
 ## Capability Status
 
@@ -50,6 +53,16 @@
   - legacy first-item label
   - neutral `Invoice # + item count`
   - explicit item-list label (`Item A + Item B + ...`) with safe truncation.
+
+- Rich invoice view with Stripe-parity two-column layout: Charge Summary (subtotal, discount, tax, total, refunded, status badge) + Payment & References (order/checkout IDs, invoice/PDF/receipt links, captured timestamp).
+- Global order details enhancements: products subtotal before coupons, coupon tag icons, green discount styling, duplicate coupon section hiding.
+- Clients page settlement hook with provider total + IPS total comparison.
+- Print invoice hook with charge summary and payment references tables.
+- Idempotency guard for dual-app installations (Stripe + Polar) to prevent double-processing of global enhancements.
+
+- Polar invoice generation: automatic `POST /v1/orders/{id}/invoice` trigger after `order.paid`, followed by URL fetch on `order.updated` with `is_invoice_generated`.
+- Enriched settlement snapshots: 13+ additional fields from Polar Order model (discount, net amount, refunded tax, invoice number, billing name/reason, customer email/name/tax IDs, discount name/code, line items).
+- Invoice URL persistence across snapshot rebuilds prevents later events from clearing previously-fetched URLs.
 
 ### Post-MVP targets
 - Expanded analytics cards in integrity panel.
