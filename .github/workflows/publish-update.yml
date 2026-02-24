@@ -1,0 +1,56 @@
+name: Publish Update Check
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract version from application.json
+        id: version
+        run: |
+          APP_JSON="app-source/data/application.json"
+          echo "version=$(jq -r '.app_version' $APP_JSON)" >> $GITHUB_OUTPUT
+          echo "longversion=$(jq -r '.app_long_version' $APP_JSON)" >> $GITHUB_OUTPUT
+          echo "app_dir=$(jq -r '.app_directory' $APP_JSON)" >> $GITHUB_OUTPUT
+
+      - name: Publish to ips4-updates repo
+        env:
+          DEPLOY_KEY: ${{ secrets.UPDATES_DEPLOY_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$DEPLOY_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
+          export GIT_SSH_COMMAND="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no"
+
+          git clone git@github.com:XENNTEC-UG/ips4-updates.git updates
+          cd updates
+
+          APP="${{ steps.version.outputs.app_dir }}"
+          REPO="${{ github.repository }}"
+          RELEASED=$(date +%s)
+
+          cat > "${APP}.json" <<ENDJSON
+          {
+              "version": "${{ steps.version.outputs.version }}",
+              "longversion": ${{ steps.version.outputs.longversion }},
+              "released": ${RELEASED},
+              "updateurl": "https://github.com/${REPO}/releases",
+              "releasenotes": "https://github.com/${REPO}/releases/tag/${{ github.event.release.tag_name }}"
+          }
+          ENDJSON
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add "${APP}.json"
+          git diff --cached --quiet || {
+            git commit -m "Update ${APP} to ${{ steps.version.outputs.version }}"
+            git push
+          }
+
+          rm -f ~/.ssh/deploy_key

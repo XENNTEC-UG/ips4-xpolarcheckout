@@ -4,7 +4,7 @@
     "app_directory": "xpolarcheckout",
     "app_protected": 0,
     "app_website": "https:\/\/xenntec.com\/",
-    "app_update_check": "",
+    "app_update_check": "https://xenntec-ug.github.io/ips4-updates/xpolarcheckout.json",
     "app_hide_tab": 1,
     "app_version": "1.0.6",
     "app_long_version": 10006
