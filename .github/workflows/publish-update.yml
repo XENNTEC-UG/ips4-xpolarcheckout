@@ -58,5 +58,6 @@ jobs:
           git add "${APP}.json"
           git diff --cached --quiet || {
             git commit -m "Update ${APP} to ${{ steps.version.outputs.version }}"
+            git pull --rebase
             git push
           }
