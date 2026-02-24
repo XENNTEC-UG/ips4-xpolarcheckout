@@ -64,10 +64,10 @@ A free, open-source payment gateway that integrates [Polar](https://polar.sh) wi
 
 ### 1. Download
 
-Download the latest release from the [Releases](https://github.com/XENNSU-IO/ips4-xpolarcheckout/releases) page, or clone the repo:
+Download the latest release from the [Releases](https://github.com/XENNTEC-UG/ips4-xpolarcheckout/releases) page, or clone the repo:
 
 ```bash
-git clone https://github.com/XENNSU-IO/ips4-xpolarcheckout.git
+git clone https://github.com/XENNTEC-UG/ips4-xpolarcheckout.git
 ```
 
 The IPS4 application files are in the `app-source/` directory.
@@ -183,4 +183,4 @@ This project is free to use. See the repository for license details.
 
 ---
 
-**Made by [XENNSU](https://github.com/XENNSU-IO)**
+**Made by [XENNTEC](https://github.com/XENNTEC-UG)**
