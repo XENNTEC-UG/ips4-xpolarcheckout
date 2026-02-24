@@ -6,7 +6,7 @@
 
 | Package version | Long version | Source |
 | --- | --- | --- |
-| `1.0.5` | `10005` | `app-source/data/versions.json` |
+| `1.0.6` | `10006` | `app-source/data/versions.json` |
 
 ## Product Positioning
 
@@ -26,6 +26,8 @@
 | Rich invoice view (Stripe parity) | Two-column settlement display with charge summary, payment refs, and status badges | Customer-facing transparency matching Stripe-level invoice detail |
 | Polar invoice generation | Automatic invoice creation on Polar via API after payment | Customers get hosted invoice pages and PDF downloads |
 | Enriched settlement snapshots | 13+ additional fields from Polar Order model (discount, billing, customer, line items) | Complete audit trail with full provider data |
+| IPS coupon forwarding | Forward IPS Nexus coupons as one-time Polar discounts with math verification | Proper discount breakdown on Polar hosted checkout |
+| Discount code control | ACP toggle for Polar-side promotional codes with automatic lockout when IPS coupon active | Prevents double-discounting |
 
 ## Capability Status
 
@@ -63,6 +65,9 @@
 - Polar invoice generation: automatic `POST /v1/orders/{id}/invoice` trigger after `order.paid`, followed by URL fetch on `order.updated` with `is_invoice_generated`.
 - Enriched settlement snapshots: 13+ additional fields from Polar Order model (discount, net amount, refunded tax, invoice number, billing name/reason, customer email/name/tax IDs, discount name/code, line items).
 - Invoice URL persistence across snapshot rebuilds prevents later events from clearing previously-fetched URLs.
+
+- IPS coupon forwarding: detects negative-amount invoice items (coupons, gateway discounts), creates one-time Polar discounts via `POST /v1/discounts`, attaches to checkout session with math verification and graceful fallback.
+- Discount code control: ACP toggle for Polar-side promotional codes (default OFF). When IPS coupon is active, Polar codes are always blocked regardless of toggle.
 
 ### Post-MVP targets
 - Expanded analytics cards in integrity panel.

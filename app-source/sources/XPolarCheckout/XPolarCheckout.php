@@ -121,8 +121,12 @@ class _XPolarCheckout extends \IPS\nexus\Gateway
                 $polarProductId = $defaultProductId;
             }
 
-            /* Calculate line total: unit price * quantity */
+            /* Calculate line total: unit price * quantity (skip negative-amount discount items) */
             $lineAmount = $this->moneyToMinorUnit( $invoiceItem->price );
+            if ( $lineAmount <= 0 )
+            {
+                continue;
+            }
             $lineQuantity = isset( $invoiceItem->quantity ) ? \max( 1, (int) $invoiceItem->quantity ) : 1;
             $lineTotal = $lineAmount * $lineQuantity;
 
@@ -198,9 +202,70 @@ class _XPolarCheckout extends \IPS\nexus\Gateway
             );
         }
 
+        /* --- Coupon/discount forwarding to Polar --- */
+        $discountInfo = $this->calculateInvoiceDiscount( $transaction );
+        $polarDiscountId = NULL;
+        $allowDiscountCodes = isset( $settings['allow_discount_codes'] ) && $settings['allow_discount_codes'] === '1';
+
+        if ( $discountInfo['amount_minor'] > 0 )
+        {
+            /* Verify math: positive line items total minus discount must equal transaction amount */
+            $lineItemsTotal = 0;
+            foreach ( $pricesMap as $priceEntries )
+            {
+                $lineItemsTotal += (int) $priceEntries[0]['price_amount'];
+            }
+            $transactionMinor = $this->moneyToMinorUnit( $transaction->amount );
+
+            if ( ( $lineItemsTotal - $discountInfo['amount_minor'] ) === $transactionMinor )
+            {
+                try
+                {
+                    $polarDiscountId = $this->createOneTimePolarDiscount( $discountInfo, $transaction->amount->currency, $settings );
+                    $allowDiscountCodes = FALSE;
+                }
+                catch ( \Exception $e )
+                {
+                    \IPS\Log::log( $e, 'xpolarcheckout_coupon' );
+                    /* Fallback: consolidate to transaction amount without Polar discount */
+                    $fallbackProduct = $products[0];
+                    $products = array( $fallbackProduct );
+                    $pricesMap = array(
+                        $fallbackProduct => array(
+                            array(
+                                'amount_type' => 'fixed',
+                                'price_amount' => $transactionMinor,
+                                'price_currency' => $transactionCurrency,
+                            ),
+                        ),
+                    );
+                }
+            }
+            else
+            {
+                /* Math mismatch safety: consolidate to transaction amount */
+                \IPS\Log::log(
+                    'Coupon math mismatch: lineTotal=' . $lineItemsTotal . ' discount=' . $discountInfo['amount_minor'] . ' txn=' . $transactionMinor,
+                    'xpolarcheckout_coupon'
+                );
+                $fallbackProduct = $products[0];
+                $products = array( $fallbackProduct );
+                $pricesMap = array(
+                    $fallbackProduct => array(
+                        array(
+                            'amount_type' => 'fixed',
+                            'price_amount' => $transactionMinor,
+                            'price_currency' => $transactionCurrency,
+                        ),
+                    ),
+                );
+            }
+        }
+
         $payload = array(
             'products' => $products,
             'currency' => $transactionCurrency,
+            'allow_discount_codes' => (bool) $allowDiscountCodes,
             'success_url' => (string) $transaction->url()->setQueryString( 'pending', 1 ),
             'metadata' => array(
                 'ips_transaction_id' => (string) (int) $transaction->id,
@@ -211,6 +276,11 @@ class _XPolarCheckout extends \IPS\nexus\Gateway
             ),
             'prices' => $pricesMap,
         );
+
+        if ( $polarDiscountId !== NULL )
+        {
+            $payload['discount_id'] = $polarDiscountId;
+        }
 
         if ( $externalCustomerId !== '' )
         {
@@ -367,6 +437,12 @@ class _XPolarCheckout extends \IPS\nexus\Gateway
                 ),
             )
         ) );
+        $form->addHeader( 'xpolarcheckout_discount_settings_header' );
+        $form->add( new \IPS\Helpers\Form\YesNo(
+            'xpolarcheckout_allow_discount_codes',
+            isset( $current['allow_discount_codes'] ) ? (bool) $current['allow_discount_codes'] : FALSE,
+            FALSE
+        ) );
         $form->add( new \IPS\Helpers\Form\Text(
             'xpolarcheckout_presentment_currency',
             isset( $current['presentment_currency'] ) ? \mb_strtoupper( (string) $current['presentment_currency'] ) : \mb_strtoupper( static::DEFAULT_PRESENTMENT_CURRENCY ),
@@ -421,6 +497,7 @@ class _XPolarCheckout extends \IPS\nexus\Gateway
         {
             $settings['multi_item_label_mode'] = static::MULTI_ITEM_LABEL_MODE_FIRST_ITEM;
         }
+        $settings['allow_discount_codes'] = ( isset( $settings['allow_discount_codes'] ) && $settings['allow_discount_codes'] ) ? '1' : '0';
         $settings['presentment_currency'] = isset( $settings['presentment_currency'] ) ? \mb_strtolower( \trim( (string) $settings['presentment_currency'] ) ) : static::DEFAULT_PRESENTMENT_CURRENCY;
         $settings['webhook_secret'] = isset( $settings['webhook_secret'] ) ? \trim( (string) $settings['webhook_secret'] ) : '';
         $settings['webhook_endpoint_id'] = isset( $settings['webhook_endpoint_id'] ) ? \trim( (string) $settings['webhook_endpoint_id'] ) : '';
@@ -519,6 +596,103 @@ class _XPolarCheckout extends \IPS\nexus\Gateway
         }
 
         return $count;
+    }
+
+    /**
+     * Calculate total invoice discount from negative-amount items (coupons, gateway discounts).
+     *
+     * @param   \IPS\nexus\Transaction $transaction
+     * @return  array   array( 'amount_minor' => int, 'names' => array )
+     */
+    protected function calculateInvoiceDiscount( \IPS\nexus\Transaction $transaction )
+    {
+        $discountMinor = 0;
+        $discountNames = array();
+
+        foreach ( $transaction->invoice->items as $invoiceItem )
+        {
+            if ( !isset( $invoiceItem->price ) || !( $invoiceItem->price instanceof \IPS\nexus\Money ) )
+            {
+                continue;
+            }
+
+            $unitAmount = $this->moneyToMinorUnit( $invoiceItem->price );
+            if ( $unitAmount >= 0 )
+            {
+                continue;
+            }
+
+            $quantity = isset( $invoiceItem->quantity ) ? (int) $invoiceItem->quantity : 1;
+            if ( $quantity < 1 )
+            {
+                $quantity = 1;
+            }
+
+            $discountMinor += \abs( $unitAmount ) * $quantity;
+
+            $itemName = isset( $invoiceItem->name ) ? \trim( (string) $invoiceItem->name ) : '';
+            if ( $itemName !== '' )
+            {
+                $discountNames[] = $itemName;
+            }
+        }
+
+        return array( 'amount_minor' => $discountMinor, 'names' => $discountNames );
+    }
+
+    /**
+     * Create a one-time Polar discount from IPS invoice coupon data.
+     *
+     * @param   array   $discountInfo   From calculateInvoiceDiscount()
+     * @param   string  $currency       Transaction currency code
+     * @param   array   $settings       Gateway settings
+     * @return  string  Polar discount UUID
+     * @throws  \RuntimeException
+     */
+    protected function createOneTimePolarDiscount( array $discountInfo, $currency, array $settings )
+    {
+        $couponName = \count( $discountInfo['names'] )
+            ? \implode( ', ', $discountInfo['names'] )
+            : \IPS\Member::loggedIn()->language()->addToStack( 'xpolarcheckout_coupon_discount' );
+
+        $couponName = \strip_tags( (string) $couponName );
+        $couponName = \trim( (string) \preg_replace( '/\s+/', ' ', $couponName ) );
+        if ( $couponName === '' )
+        {
+            $couponName = \IPS\Member::loggedIn()->language()->addToStack( 'xpolarcheckout_coupon_discount' );
+        }
+        if ( \mb_strlen( $couponName ) > 100 )
+        {
+            $couponName = \rtrim( \mb_substr( $couponName, 0, 100 ) );
+        }
+
+        $apiBase = static::resolveApiBase( $settings );
+        $accessToken = \trim( (string) $settings['access_token'] );
+
+        $body = \json_encode( array(
+            'name'     => $couponName,
+            'type'     => 'fixed',
+            'amount'   => $discountInfo['amount_minor'],
+            'currency' => \mb_strtolower( (string) $currency ),
+            'duration' => 'once',
+        ) );
+
+        $response = \IPS\Http\Url::external( $apiBase . '/v1/discounts' )
+            ->request( 20 )
+            ->setHeaders( array(
+                'Authorization' => 'Bearer ' . $accessToken,
+                'Content-Type'  => 'application/json',
+                'Accept'        => 'application/json',
+            ) )
+            ->post( $body )
+            ->decodeJson();
+
+        if ( !isset( $response['id'] ) || !\is_string( $response['id'] ) )
+        {
+            throw new \RuntimeException( 'Failed to create Polar discount for invoice coupon.' );
+        }
+
+        return $response['id'];
     }
 
     /**

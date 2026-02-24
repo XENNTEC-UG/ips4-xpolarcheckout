@@ -1,5 +1,23 @@
 # X Polar Checkout App - Changelog
 
+## 2026-02-24 - v1.0.6: IPS Coupon → Polar Discount Forwarding
+
+### Coupon Forwarding
+- Added `calculateInvoiceDiscount()` — detects negative-amount invoice items (coupons, gateway discounts) and sums the total discount in minor units.
+- Added `createOneTimePolarDiscount()` — creates a one-time Polar discount via `POST /v1/discounts` with the coupon name and amount, returning a UUID for checkout session attachment.
+- Modified `auth()` to skip negative-amount items in the product loop and forward IPS coupons as Polar discounts with math verification and graceful fallback.
+- Polar hosted checkout now shows `Product → Discount → Total` breakdown when an IPS Nexus coupon is applied.
+
+### Discount Controls
+- Added ACP gateway setting: "Allow Polar discount codes" (default OFF). Controls whether customers can enter Polar promotional codes on the hosted checkout page.
+- When an IPS Nexus coupon is active, Polar-side discount codes are always blocked regardless of the ACP toggle, preventing double-discounting.
+
+### Error Handling
+- Coupon creation failures never block checkout — falls back to consolidated transaction amount without Polar-side discount breakdown.
+- Math mismatch safety: if positive line items minus discount doesn't equal transaction amount, falls back silently with warning log.
+
+Closes #5, closes #7.
+
 ## 2026-02-23 - v1.0.5: Polar Invoice Generation + Enriched Snapshots
 
 ### Polar Invoice Generation

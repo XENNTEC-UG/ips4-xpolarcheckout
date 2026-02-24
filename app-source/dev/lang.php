@@ -182,4 +182,9 @@ $lang = array(
 'xpolarcheckout_billing_reason_subscription_cycle'	=> 'Subscription Renewal',
 'xpolarcheckout_billing_reason_subscription_update'	=> 'Subscription Update',
 
+/* v1.0.6 — Discount settings */
+'xpolarcheckout_discount_settings_header'	=> 'Discount Settings',
+'xpolarcheckout_allow_discount_codes'	=> 'Allow Polar discount codes',
+'xpolarcheckout_allow_discount_codes_desc'	=> 'When enabled, customers can enter Polar promotional codes on the hosted checkout page. When an IPS Nexus coupon is applied, Polar codes are always blocked regardless of this setting.',
+
 );
