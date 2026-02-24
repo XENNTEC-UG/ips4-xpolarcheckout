@@ -22,16 +22,13 @@ jobs:
           echo "longversion=$(jq -r '.app_long_version' $APP_JSON)" >> $GITHUB_OUTPUT
           echo "app_dir=$(jq -r '.app_directory' $APP_JSON)" >> $GITHUB_OUTPUT
 
-      - name: Publish to ips4-updates repo
-        env:
-          DEPLOY_KEY: ${{ secrets.UPDATES_DEPLOY_KEY }}
-        run: |
-          mkdir -p ~/.ssh
-          echo "$DEPLOY_KEY" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
-          export GIT_SSH_COMMAND="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no"
+      - name: Set up SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.UPDATES_DEPLOY_KEY }}
 
+      - name: Publish to ips4-updates repo
+        run: |
           git clone git@github.com:XENNTEC-UG/ips4-updates.git updates
           cd updates
 
@@ -63,5 +60,3 @@ jobs:
             git commit -m "Update ${APP} to ${{ steps.version.outputs.version }}"
             git push
           }
-
-          rm -f ~/.ssh/deploy_key
