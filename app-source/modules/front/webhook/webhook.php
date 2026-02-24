@@ -504,7 +504,7 @@ class _webhook extends \IPS\Dispatcher\Controller
         }
 
         $transaction->status = \IPS\nexus\Transaction::STATUS_GATEWAY_PENDING;
-        $this->appendHistoryStatus( $transaction, \IPS\nexus\Transaction::STATUS_GATEWAY_PENDING, (string) $reason );
+        $this->appendHistoryStatus( $transaction, \IPS\nexus\Transaction::STATUS_WAITING, (string) $reason );
         $transaction->save();
     }
 
