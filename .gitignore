@@ -3,3 +3,10 @@
 __pycache__/
 *.pyc
 *.sql
+
+# Internal workflow docs (kept local, not published)
+docs/archive/
+docs/BACKLOG.md
+docs/TEST_RUNTIME.md
+docs/POLAR_GATEWAY_IMPLEMENTATION_PLAN.md
+docs/README.md
