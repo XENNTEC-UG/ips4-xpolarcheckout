@@ -1,5 +1,9 @@
 name: Publish Update Check
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'app-source/data/application.json'
   release:
     types: [published]
   workflow_dispatch:
@@ -34,6 +38,13 @@ jobs:
           APP="${{ steps.version.outputs.app_dir }}"
           REPO="${{ github.repository }}"
           RELEASED=$(date +%s)
+          TAG="${{ github.event.release.tag_name }}"
+
+          if [ -n "$TAG" ]; then
+            NOTES="https://github.com/${REPO}/releases/tag/${TAG}"
+          else
+            NOTES="https://github.com/${REPO}/releases"
+          fi
 
           cat > "${APP}.json" <<ENDJSON
           {
@@ -41,7 +52,7 @@ jobs:
               "longversion": ${{ steps.version.outputs.longversion }},
               "released": ${RELEASED},
               "updateurl": "https://github.com/${REPO}/releases",
-              "releasenotes": "https://github.com/${REPO}/releases/tag/${{ github.event.release.tag_name }}"
+              "releasenotes": "${NOTES}"
           }
           ENDJSON
 
