@@ -182,6 +182,12 @@ $lang = array(
 'xpolarcheckout_billing_reason_subscription_cycle'	=> 'Subscription Renewal',
 'xpolarcheckout_billing_reason_subscription_update'	=> 'Subscription Update',
 
+/* v1.0.7 — Acknowledge + Delete webhook errors */
+'xpc_integrity_ack_errors'	=> 'Acknowledge Errors',
+'xpc_integrity_ack_errors_done'	=> 'Webhook errors acknowledged.',
+'xpc_integrity_delete_errors'	=> 'Delete Errors',
+'xpc_integrity_delete_errors_done'	=> 'Webhook errors deleted from system log.',
+
 /* v1.0.6 — Discount settings */
 'xpolarcheckout_discount_settings_header'	=> 'Discount Settings',
 'xpolarcheckout_allow_discount_codes'	=> 'Allow Polar discount codes',

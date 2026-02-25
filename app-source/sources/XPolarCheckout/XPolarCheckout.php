@@ -1205,12 +1205,20 @@ class _XPolarCheckout extends \IPS\nexus\Gateway
         $dayAgo = \time() - 86400;
         $monthAgo = \time() - ( 30 * 86400 );
 
+        /* Respect acknowledgment timestamp — only count errors after ack */
+        $ackAt = 0;
+        if ( isset( \IPS\Data\Store::i()->xpc_webhook_errors_ack_at ) )
+        {
+            $ackAt = (int) \IPS\Data\Store::i()->xpc_webhook_errors_ack_at;
+        }
+        $errorsSince = \max( $dayAgo, $ackAt );
+
         try
         {
             $stats['webhook_error_count_24h'] = (int) \IPS\Db::i()->select(
                 'COUNT(*)',
                 'core_log',
-                array( '( category=? OR category=? ) AND time>?', 'xpolarcheckout_webhook', 'xpolarcheckout_snapshot', $dayAgo )
+                array( '( category=? OR category=? ) AND time>?', 'xpolarcheckout_webhook', 'xpolarcheckout_snapshot', $errorsSince )
             )->first();
         }
         catch ( \Exception $e ) {}

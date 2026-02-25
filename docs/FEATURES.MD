@@ -2,11 +2,11 @@
 
 > Polar payment gateway for IPS Nexus focused on reliable capture, reconciliation, and operational visibility.
 
-## Version Snapshot
+## Current Version
 
-| Package version | Long version | Source |
+| Version | Long Version | Source |
 | --- | --- | --- |
-| `1.0.6` | `10006` | `app-source/data/versions.json` |
+| `1.0.7` | `10007` | `app-source/data/application.json` |
 
 ## Product Positioning
 
@@ -102,7 +102,7 @@
 - Settlement details rendered on client and print invoice views via theme hooks.
 
 ### Monitoring and recovery
-- ACP integrity panel with environment badge (sandbox/production), replay status, and health indicators.
+- ACP integrity panel with environment badge (sandbox/production), replay status, health indicators, and acknowledge/delete error controls.
 - Replay pipeline sourced from Polar `/v1/webhooks/deliveries` API with deduplication and persisted cursor.
 - Dry-run mode for safe replay testing without state changes.
 - Configurable replay guardrails: lookback window, overlap, and max events per run with clamped bounds.

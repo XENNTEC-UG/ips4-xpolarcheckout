@@ -135,7 +135,21 @@ class _integrity extends \IPS\Dispatcher\Controller
         $h .= $this->renderWebhookEndpointSection( $stats );
 
         $h .= '<div class="xpc-section">';
-        $h .= '<div class="xpc-section-title">Recent Webhook Errors</div>';
+        $h .= '<div class="xpc-section-title" style="display:flex;align-items:center;justify-content:space-between;">';
+        $h .= '<span>Recent Webhook Errors</span>';
+        $h .= '<span>';
+        if ( $errors24h > 0 )
+        {
+            $ackUrl = \IPS\Http\Url::internal( 'app=xpolarcheckout&module=monitoring&controller=integrity&do=ackErrors', 'admin' )->csrf();
+            $h .= '<a href="' . $this->escape( (string) $ackUrl ) . '" class="ipsButton ipsButton_alternate ipsButton_verySmall">' . $this->escape( \IPS\Member::loggedIn()->language()->addToStack( 'xpc_integrity_ack_errors' ) ) . '</a> ';
+        }
+        if ( \count( $stats['recent_webhook_errors'] ) > 0 )
+        {
+            $deleteUrl = \IPS\Http\Url::internal( 'app=xpolarcheckout&module=monitoring&controller=integrity&do=deleteErrors', 'admin' )->csrf();
+            $h .= '<a href="' . $this->escape( (string) $deleteUrl ) . '" class="ipsButton ipsButton_negative ipsButton_verySmall" data-confirm>' . $this->escape( \IPS\Member::loggedIn()->language()->addToStack( 'xpc_integrity_delete_errors' ) ) . '</a>';
+        }
+        $h .= '</span>';
+        $h .= '</div>';
         $h .= $this->renderWebhookErrorTable( $stats['recent_webhook_errors'] );
         $h .= '</div>';
 
@@ -198,6 +212,43 @@ class _integrity extends \IPS\Dispatcher\Controller
             \IPS\Log::log( $e, 'xpolarcheckout_integrity_replay' );
             \IPS\Output::i()->redirect( $redirectUrl, 'xpolarcheckout_integrity_replay_failed' );
         }
+    }
+
+    /**
+     * Acknowledge webhook errors — suppresses notification until new errors arrive.
+     *
+     * @return void
+     */
+    protected function ackErrors()
+    {
+        \IPS\Session::i()->csrfCheck();
+
+        \IPS\Data\Store::i()->xpc_webhook_errors_ack_at = \time();
+        \IPS\core\AdminNotification::remove( 'xpolarcheckout', 'PaymentIntegrity', 'webhook_errors' );
+
+        \IPS\Output::i()->redirect(
+            \IPS\Http\Url::internal( 'app=xpolarcheckout&module=monitoring&controller=integrity', 'admin' ),
+            'xpc_integrity_ack_errors_done'
+        );
+    }
+
+    /**
+     * Delete all webhook error log entries.
+     *
+     * @return void
+     */
+    protected function deleteErrors()
+    {
+        \IPS\Session::i()->csrfCheck();
+
+        \IPS\Db::i()->delete( 'core_log', array( 'category=? OR category=?', 'xpolarcheckout_webhook', 'xpolarcheckout_snapshot' ) );
+        \IPS\Data\Store::i()->xpc_webhook_errors_ack_at = \time();
+        \IPS\core\AdminNotification::remove( 'xpolarcheckout', 'PaymentIntegrity', 'webhook_errors' );
+
+        \IPS\Output::i()->redirect(
+            \IPS\Http\Url::internal( 'app=xpolarcheckout&module=monitoring&controller=integrity', 'admin' ),
+            'xpc_integrity_delete_errors_done'
+        );
     }
 
     /**
@@ -294,12 +345,20 @@ class _integrity extends \IPS\Dispatcher\Controller
         $dayAgo = \time() - 86400;
         $monthAgo = \time() - ( 30 * 86400 );
 
+        /* Respect acknowledgment timestamp */
+        $ackAt = 0;
+        if ( isset( \IPS\Data\Store::i()->xpc_webhook_errors_ack_at ) )
+        {
+            $ackAt = (int) \IPS\Data\Store::i()->xpc_webhook_errors_ack_at;
+        }
+        $errorsSince = \max( $dayAgo, $ackAt );
+
         try
         {
             $stats['webhook_error_count_24h'] = (int) \IPS\Db::i()->select(
                 'COUNT(*)',
                 'core_log',
-                array( '( category=? OR category=? ) AND time>?', 'xpolarcheckout_webhook', 'xpolarcheckout_snapshot', $dayAgo )
+                array( '( category=? OR category=? ) AND time>?', 'xpolarcheckout_webhook', 'xpolarcheckout_snapshot', $errorsSince )
             )->first();
 
             foreach ( \IPS\Db::i()->select(
