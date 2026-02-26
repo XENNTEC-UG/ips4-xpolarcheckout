@@ -12,7 +12,7 @@ Production-ready IPS4 Nexus payment gateway app (`xpolarcheckout`) backed by Pol
 
 ## 3) Current State
 
-- Version: `1.0.7` / `10007` (as of 2026-02-25)
+- Version: `1.0.8` / `10008` (as of 2026-02-26)
 - Gateway registration and recovery shipped in `v1.0.1`
 - Standard Webhooks signature validation hardening implemented
 - Forensics table: `xpc_webhook_forensics`
