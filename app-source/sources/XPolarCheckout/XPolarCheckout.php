@@ -1196,7 +1196,7 @@ class _XPolarCheckout extends \IPS\nexus\Gateway
     {
         $stats = array(
             'webhook_error_count_24h' => 0,
-            'replay_recent_run' => FALSE,
+            'replay_recent_run' => NULL,
             'mismatch_count_30d' => 0,
             'mismatch_count_all_time' => 0,
             'replay_last_run_at' => NULL,
@@ -1237,7 +1237,9 @@ class _XPolarCheckout extends \IPS\nexus\Gateway
             {
                 $state = \IPS\Data\Store::i()->xpolarcheckout_webhook_replay_state;
                 $stats['replay_last_run_at'] = isset( $state['last_run_at'] ) ? (int) $state['last_run_at'] : NULL;
-                $stats['replay_recent_run'] = ( $stats['replay_last_run_at'] !== NULL && ( \time() - $stats['replay_last_run_at'] ) <= 3600 );
+                $stats['replay_recent_run'] = ( $stats['replay_last_run_at'] !== NULL )
+                    ? ( ( \time() - $stats['replay_last_run_at'] ) <= 3600 )
+                    : NULL;
             }
         }
         catch ( \Exception $e ) {}

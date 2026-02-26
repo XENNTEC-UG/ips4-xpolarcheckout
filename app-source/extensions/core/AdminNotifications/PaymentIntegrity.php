@@ -56,12 +56,12 @@ class _PaymentIntegrity extends \IPS\core\AdminNotification
 			\IPS\core\AdminNotification::remove( 'xpolarcheckout', 'PaymentIntegrity', 'webhook_errors' );
 		}
 
-		/* Replay task stale */
+		/* Replay task stale — NULL means never ran yet (not stale), FALSE means genuinely stale */
 		if ( $stats['replay_recent_run'] === FALSE )
 		{
 			\IPS\core\AdminNotification::send( 'xpolarcheckout', 'PaymentIntegrity', 'replay_stale', TRUE );
 		}
-		else
+		elseif ( $stats['replay_recent_run'] === TRUE )
 		{
 			\IPS\core\AdminNotification::remove( 'xpolarcheckout', 'PaymentIntegrity', 'replay_stale' );
 		}

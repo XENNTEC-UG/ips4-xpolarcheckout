@@ -93,10 +93,13 @@ class _integrity extends \IPS\Dispatcher\Controller
             . '<div class="xpc-card-sub">Gateway settings mode</div>'
             . '</div>';
 
-        $replayHealthy = (bool) $stats['replay_recent_run'];
-        $h .= '<div class="xpc-card ' . ( $replayHealthy ? 'xpc-card--ok' : 'xpc-card--warn' ) . '">'
+        $replayState = $stats['replay_recent_run'];
+        $replayClass = $replayState === TRUE ? 'xpc-card--ok' : ( $replayState === NULL ? 'xpc-card--ok' : 'xpc-card--warn' );
+        $replayTag = $replayState === TRUE ? 'xpc-tag--ok' : ( $replayState === NULL ? 'xpc-tag--ok' : 'xpc-tag--warn' );
+        $replayLabel = $replayState === TRUE ? 'Healthy' : ( $replayState === NULL ? 'Pending' : 'Stale' );
+        $h .= '<div class="xpc-card ' . $replayClass . '">'
             . '<div class="xpc-card-label">Replay Task</div>'
-            . '<div class="xpc-card-value"><span class="xpc-tag ' . ( $replayHealthy ? 'xpc-tag--ok' : 'xpc-tag--warn' ) . '">' . ( $replayHealthy ? 'Healthy' : 'Stale' ) . '</span></div>'
+            . '<div class="xpc-card-value"><span class="xpc-tag ' . $replayTag . '">' . $replayLabel . '</span></div>'
             . '<div class="xpc-card-sub">Last run: ' . $this->escape( $this->formatTimestamp( $stats['replay_last_run_at'] ) ) . '</div>'
             . '</div>';
 
@@ -280,7 +283,7 @@ class _integrity extends \IPS\Dispatcher\Controller
             'replay_last_run_at' => NULL,
             'replay_last_event_created' => NULL,
             'replay_last_replayed_count' => 0,
-            'replay_recent_run' => FALSE,
+            'replay_recent_run' => NULL,
             'replay_config_lookback' => 3600,
             'replay_config_overlap' => 300,
             'replay_config_max_events' => 100,
@@ -339,7 +342,7 @@ class _integrity extends \IPS\Dispatcher\Controller
             $stats['replay_last_run_at'] = ( isset( $replayState['last_run_at'] ) && \is_numeric( $replayState['last_run_at'] ) ) ? (int) $replayState['last_run_at'] : NULL;
             $stats['replay_last_event_created'] = ( isset( $replayState['last_event_created'] ) && \is_numeric( $replayState['last_event_created'] ) ) ? (int) $replayState['last_event_created'] : NULL;
             $stats['replay_last_replayed_count'] = ( isset( $replayState['last_replayed_count'] ) && \is_numeric( $replayState['last_replayed_count'] ) ) ? (int) $replayState['last_replayed_count'] : 0;
-            $stats['replay_recent_run'] = ( $stats['replay_last_run_at'] !== NULL && ( \time() - $stats['replay_last_run_at'] ) <= $stats['replay_config_lookback'] );
+            $stats['replay_recent_run'] = ( $stats['replay_last_run_at'] !== NULL ) ? ( ( \time() - $stats['replay_last_run_at'] ) <= $stats['replay_config_lookback'] ) : NULL;
         }
 
         $dayAgo = \time() - 86400;

@@ -6,7 +6,7 @@
 
 | Version | Long Version | Source |
 | --- | --- | --- |
-| `1.0.7` | `10007` | `app-source/data/application.json` |
+| `1.0.8` | `10008` | `app-source/data/application.json` |
 
 ## Product Positioning
 
