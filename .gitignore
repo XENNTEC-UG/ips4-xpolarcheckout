@@ -1,6 +1,7 @@
 # Dependencies and caches
 .claude/
 .auto-claude/
+.roam/
 
 # Releases — only track current app export tars
 releases/*
