@@ -110,7 +110,7 @@ COMPOSE_PROFILES=http,polar
 docker compose up -d polar-cli
 ```
 
-The webhook secret is automatically synced to the database — no manual ACP configuration needed. See [docs/POLAR_CLI_LOCAL_DEBUG.md](docs/POLAR_CLI_LOCAL_DEBUG.md) for the full setup guide.
+The webhook secret is automatically synced to the database — no manual ACP configuration needed. See [docs/archive/POLAR_CLI_LOCAL_DEBUG.md](docs/archive/POLAR_CLI_LOCAL_DEBUG.md) for the full setup guide.
 
 ## Architecture
 
@@ -159,7 +159,7 @@ docs/               Documentation, changelogs, runbooks
 | [FEATURES.MD](docs/FEATURES.MD) | Complete feature list and capability status |
 | [FLOW.md](docs/FLOW.md) | End-to-end payment flow and webhook invariants |
 | [CHANGELOG.md](docs/CHANGELOG.md) | Version history and release notes |
-| [POLAR_CLI_LOCAL_DEBUG.md](docs/POLAR_CLI_LOCAL_DEBUG.md) | Local dev webhook forwarding setup |
+| [POLAR_CLI_LOCAL_DEBUG.md](docs/archive/POLAR_CLI_LOCAL_DEBUG.md) | Local dev webhook forwarding setup (archived) |
 | [TEST_RUNTIME.md](docs/TEST_RUNTIME.md) | Runtime testing procedures |
 
 ## Compatibility

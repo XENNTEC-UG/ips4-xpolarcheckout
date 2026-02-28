@@ -6,7 +6,7 @@
 
 | Version | Long Version | Source |
 | --- | --- | --- |
-| `1.0.9` | `10009` | `app-source/data/application.json` |
+| `1.0.10` | `10010` | `app-source/data/application.json` |
 
 ## Product Positioning
 
@@ -28,6 +28,7 @@
 | Enriched settlement snapshots | 13+ additional fields from Polar Order model (discount, billing, customer, line items) | Complete audit trail with full provider data |
 | IPS coupon forwarding | Forward IPS Nexus coupons as one-time Polar discounts with math verification | Proper discount breakdown on Polar hosted checkout |
 | Discount code control | ACP toggle for Polar-side promotional codes with automatic lockout when IPS coupon active | Prevents double-discounting |
+| **Unified XENNTEC ACP tab** | All XENNTEC apps under a single collapsible accordion sidebar tab with per-app separators and persisted state | Clean ACP navigation without per-app tab clutter |
 
 ## Capability Status
 

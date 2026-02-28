@@ -1,5 +1,8 @@
-*.log
-*.tmp
-__pycache__/
-*.pyc
-*.sql
+# Dependencies and caches
+.claude/
+.auto-claude/
+
+# Releases — only track current app export tars
+releases/*
+!releases/.gitkeep
+!releases/X Polar Checkout *.tar
