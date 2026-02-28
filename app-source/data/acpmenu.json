@@ -1,21 +1,21 @@
 {
     "monitoring": {
         "integrity": {
-            "tab": "nexus",
+            "tab": "xenntec",
             "controller": "integrity",
             "do": "",
             "restriction": "integrity_view",
             "subcontrollers": ""
         },
         "forensics": {
-            "tab": "nexus",
+            "tab": "xenntec",
             "controller": "forensics",
             "do": "",
             "restriction": "forensics_view",
             "subcontrollers": ""
         },
         "products": {
-            "tab": "nexus",
+            "tab": "xenntec",
             "controller": "products",
             "do": "",
             "restriction": "products_view",

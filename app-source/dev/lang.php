@@ -193,4 +193,8 @@ $lang = array(
 'xpolarcheckout_allow_discount_codes'	=> 'Allow Polar discount codes',
 'xpolarcheckout_allow_discount_codes_desc'	=> 'When enabled, customers can enter Polar promotional codes on the hosted checkout page. When an IPS Nexus coupon is applied, Polar codes are always blocked regardless of this setting.',
 
+/* XENNTEC ACP Tab */
+'menutab__xenntec'	=> 'XENNTEC Apps',
+'menutab__xenntec_icon'	=> 'times',
+
 );
