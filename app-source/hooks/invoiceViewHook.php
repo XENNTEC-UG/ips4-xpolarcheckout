@@ -145,7 +145,7 @@ class xpolarcheckout_hook_invoiceViewHook extends _HOOK_CLASS_
 
 		/* Total charged with divider */
 		$totalDisplay = !empty( $snapshot['amount_total_display'] ) ? htmlspecialchars( $snapshot['amount_total_display'], ENT_QUOTES | ENT_DISALLOWED, 'UTF-8', FALSE ) : '-';
-		$html .= "<div class='ipsSpacer_top ipsSpacer_half' style='border-top: 2px solid #333; padding-top: 8px;'>";
+		$html .= "<div class='ipsSpacer_top ipsSpacer_half' style='border-top: 2px solid rgba(128,128,128,0.3); padding-top: 8px;'>";
 		$html .= "<ul class='ipsDataList ipsDataList_reducedSpacing'>";
 		$html .= "<li class='ipsDataItem'>";
 		$html .= "<div class='ipsDataItem_main'><strong>" . $lang->addToStack( 'xpolarcheckout_settle_total_charged' ) . "</strong></div>";
@@ -179,13 +179,13 @@ class xpolarcheckout_hook_invoiceViewHook extends _HOOK_CLASS_
 		if ( !empty( $snapshot['provider_status'] ) )
 		{
 			$status = $snapshot['provider_status'];
-			$statusColors = array(
-				'paid' => '#28a745',
-				'refunded' => '#dc3545',
-				'partially_refunded' => '#fd7e14',
-				'pending' => '#6c757d',
+			$badgeClasses = array(
+				'paid' => 'ipsBadge_positive',
+				'refunded' => 'ipsBadge_negative',
+				'partially_refunded' => 'ipsBadge_warning',
+				'pending' => 'ipsBadge_style2',
 			);
-			$color = isset( $statusColors[ $status ] ) ? $statusColors[ $status ] : '#6c757d';
+			$badgeClass = isset( $badgeClasses[ $status ] ) ? $badgeClasses[ $status ] : 'ipsBadge_style2';
 
 			$langKey = 'xpolarcheckout_status_' . $status;
 			$statusLabel = $lang->checkKeyExists( $langKey )
@@ -193,7 +193,7 @@ class xpolarcheckout_hook_invoiceViewHook extends _HOOK_CLASS_
 				: htmlspecialchars( ucfirst( str_replace( '_', ' ', $status ) ), ENT_QUOTES | ENT_DISALLOWED, 'UTF-8', FALSE );
 
 			$html .= "<div class='ipsSpacer_top ipsSpacer_half'>";
-			$html .= "<span class='ipsBadge' style='background-color:{$color};color:#fff;'>{$statusLabel}</span>";
+			$html .= "<span class='ipsBadge {$badgeClass}'>{$statusLabel}</span>";
 			$html .= "</div>";
 		}
 

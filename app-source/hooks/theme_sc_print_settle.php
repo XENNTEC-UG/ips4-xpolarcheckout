@@ -53,7 +53,7 @@ public static function hookData(): array {
 				<td><strong>{lang="xpolarcheckout_settle_tax"}</strong></td>
 				<td>{{if !empty( $polarSnapshot[ \'amount_tax_display\' ] )}}{$polarSnapshot[ \'amount_tax_display\' ]}{{else}}-{{endif}}</td>
 			</tr>
-			<tr style=\'border-top: 2px solid #333;\'>
+			<tr style=\'border-top: 2px solid rgba(128,128,128,0.3);\'>
 				<td><strong>{lang="xpolarcheckout_settle_total_charged"}</strong></td>
 				<td><strong>{{if !empty( $polarSnapshot[ \'amount_total_display\' ] )}}{$polarSnapshot[ \'amount_total_display\' ]}{{else}}-{{endif}}</strong></td>
 			</tr>
