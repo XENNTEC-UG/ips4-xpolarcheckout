@@ -72,8 +72,12 @@
 
 ### Post-MVP targets
 - Expanded analytics cards in integrity panel.
-- Enhanced member profile payment summary blocks.
 - Additional alert channels for persistent payment integrity faults.
+- Tax ID collection and tax readiness monitoring (lang keys and method stubs scaffolded, not yet wired into checkout flow).
+- Dispute and chargeback tracking via Polar API (lang keys defined, data fetching not yet implemented).
+
+### Implemented but not yet listed above
+- **ACP member profile block** (`PolarPaymentSummary`): shows transaction count, refund count, and last activity on ACP member profiles.
 
 ## Capability Highlights
 
