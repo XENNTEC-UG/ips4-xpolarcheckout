@@ -80,6 +80,7 @@ class _XPolarCheckout extends \IPS\nexus\Gateway
         }
 
         /* Persist transaction so $transaction->id is available for success_url and metadata */
+        $transaction->status = \IPS\nexus\Transaction::STATUS_GATEWAY_PENDING;
         $transaction->save();
 
         $apiBase = static::resolveApiBase( $settings );
