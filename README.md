@@ -158,7 +158,7 @@ docs/               Documentation, changelogs, runbooks
 |---|---|
 | [FEATURES.MD](docs/FEATURES.MD) | Complete feature list and capability status |
 | [FLOW.md](docs/FLOW.md) | End-to-end payment flow and webhook invariants |
-| [CHANGELOG.md](docs/CHANGELOG.md) | Version history and release notes |
+| [Releases](https://github.com/XENNTEC-UG/ips4-xpolarcheckout/releases) | Version history and release notes |
 | [POLAR_CLI_LOCAL_DEBUG.md](docs/archive/POLAR_CLI_LOCAL_DEBUG.md) | Local dev webhook forwarding setup (archived) |
 | [TEST_RUNTIME.md](docs/TEST_RUNTIME.md) | Runtime testing procedures |
 

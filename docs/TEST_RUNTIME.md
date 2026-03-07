@@ -1,6 +1,6 @@
 # X Polar Checkout Runtime Verification
 
-Current runtime baseline is `v1.0.8` / `10008`.
+Current runtime baseline is `v1.0.11` / `10011`.
 
 ## Environment Preconditions
 
