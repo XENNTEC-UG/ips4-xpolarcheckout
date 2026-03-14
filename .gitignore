@@ -3,6 +3,11 @@
 .auto-claude/
 .roam/
 
+# ACP build outputs (regenerated from dev/ on every build)
+app-source/data/build.xml
+app-source/data/emails.xml
+app-source/data/javascript.xml
+
 # Releases — only track current app export tars
 releases/*
 !releases/.gitkeep
