@@ -13,11 +13,22 @@ Polar payment gateway for IPS Nexus. Provides hosted checkout redirect, webhook-
 ## Source Paths
 
 - Gateway: `app-source/sources/XPolarCheckout/XPolarCheckout.php`
+- Application bootstrap: `app-source/Application.php`
 - Webhook controller: `app-source/modules/front/webhook/webhook.php`
-- Integrity ACP module: `app-source/modules/admin/monitoring/integrity.php`
-- Forensics schema: `app-source/data/schema.json` (`xpc_webhook_forensics`)
+- ACP integrity panel: `app-source/modules/admin/monitoring/integrity.php`
+- ACP forensics viewer: `app-source/modules/admin/monitoring/forensics.php`
+- ACP product mappings: `app-source/modules/admin/monitoring/products.php`
+- Webhook replay task: `app-source/tasks/xpcWebhookReplay.php`
+- Integrity monitor task: `app-source/tasks/xpcIntegrityMonitor.php`
+- Invoice view hook: `app-source/hooks/invoiceViewHook.php`
+- Settlement theme hooks: `app-source/hooks/theme_sc_clients_settle.php`, `app-source/hooks/theme_sc_print_settle.php`
+- Gateway model hook: `app-source/hooks/code_GatewayModel.php`
+- Member profile hook: `app-source/hooks/code_memberProfileTab.php`
+- Coupon name hook: `app-source/hooks/couponNameHook.php`
+- Payment summary extension: `app-source/extensions/core/MemberACPProfileBlocks/PolarPaymentSummary.php`
+- Admin notification extension: `app-source/extensions/core/AdminNotifications/PaymentIntegrity.php`
+- DB schema: `app-source/data/schema.json` (`xpc_webhook_forensics`, `xpc_product_map`)
 - Polar CLI Docker: `docker/polar-cli/` (in main repo, not this submodule)
-- Polar CLI runbook: `docs/POLAR_CLI_LOCAL_DEBUG.md`
 
 ## Source of Truth
 

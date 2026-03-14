@@ -76,12 +76,14 @@ Production-ready IPS4 Nexus payment gateway app (`xpolarcheckout`) backed by Pol
 
 ### 6.3 Event Mapping
 
-Map provider event families into IPS status transitions:
+Map provider event families into IPS status transitions (7 required events):
 
-- `order.paid` → `STATUS_PAID`
-- `order.created` → gateway pending state
+- `order.created` → gateway pending state (unless terminal)
+- `order.paid` → `STATUS_PAID` + snapshot + invoice generation
+- `order.updated` → paid/refunded/partially_refunded state transitions + invoice URL fetch
+- `order.refunded` → `STATUS_REFUNDED`
+- `refund.created` / `refund.updated` → partial: `STATUS_PART_REFUNDED`, full: `STATUS_REFUNDED`
 - `checkout.updated` (failed/expired) → `STATUS_REFUSED`
-- `order.refunded` / `refund.updated` → partial: `STATUS_PART_REFUNDED`, full: `STATUS_REFUNDED`
 
 Invariants:
 
@@ -111,20 +113,25 @@ Invariants:
 
 Normalized keys under `xpolarcheckout_*` namespace:
 
-- `xpolarcheckout_provider_event_ids` — recent event ids
-- `xpolarcheckout_settlement` — order totals, currency, timestamps
-- `xpolarcheckout_refunds` — refund entries
-- `xpolarcheckout_webhook_meta` — delivery id, received-at
+- `xpolarcheckout_snapshot` — full settlement snapshot (totals, tax, discount, billing, customer, provider status, invoice URLs, refund amounts)
+- `xpolarcheckout_webhook_events` — recent webhook event IDs for idempotency (last 50)
+- `xpolarcheckout_refund` — refund evidence data
+- `xpolarcheckout_checkout_id` — Polar checkout session ID for traceability
 
 ### 7.2 Invoice Metadata (`i_status_extra`)
 
 Read-only render fields for customer/print settlement blocks:
 
-- Settlement totals (minor/display)
-- Provider order reference
-- Checkout confirmation link (validated URL only)
-- Last reconciliation timestamp
-- Provider/IPS total comparison fields (`has_total_mismatch`, `total_mismatch_display`)
+- `xpolarcheckout_snapshot` — same snapshot structure as transaction, includes:
+  - Settlement totals (`amount_total_minor`, `amount_total_display`, `amount_subtotal_minor`, `amount_tax_minor`)
+  - Discount fields (`discount_amount_minor`, `discount_amount_display`, `discount_name`, `discount_code`)
+  - Net amount (`net_amount_minor`, `net_amount_display`)
+  - Refund fields (`amount_refunded_minor`, `amount_refunded_display`, `refunded_tax_amount_minor`)
+  - Provider references (`order_id`, `checkout_id`, `polar_invoice_number`)
+  - Customer/billing (`billing_name`, `billing_reason`, `customer_email`, `customer_tax_id`)
+  - Invoice URLs (`customer_invoice_url`, `customer_invoice_pdf_url`, `customer_receipt_url`)
+  - Provider status (`provider_status`)
+  - IPS comparison (`ips_invoice_total_minor`, `ips_invoice_total_display`, `has_total_mismatch`, `total_mismatch_display`, `total_difference_tax_explained`)
 
 ### 7.3 Forensics Table
 
@@ -141,9 +148,19 @@ Read-only render fields for customer/print settlement blocks:
 
 `xpc_product_map` — IPS ↔ Polar product mapping:
 
-- Maps Nexus package IDs to Polar product IDs
-- Dynamic mapping (v1.0.3) — ACP CRUD for mappings
+| Column | Type | Purpose |
+|--------|------|---------|
+| `map_id` | INT PK | Auto-increment |
+| `ips_package_id` | INT UNIQUE | IPS Nexus package ID |
+| `polar_product_id` | VARCHAR(64) | Polar product UUID |
+| `product_name` | VARCHAR(255) | Synced product name |
+| `created_at` | INT | Creation timestamp |
+| `updated_at` | INT | Last sync timestamp |
+
+- Dynamic on-demand creation at checkout time (v1.0.3)
+- ACP viewer with bulk name sync via `products` controller
 - Fallback to `default_product_id` when no mapping exists
+- Cached lookup via datastore key `xpolarcheckout_checkout_label_products` (max 200 entries)
 
 ## 8) ACP Settings Model
 
@@ -165,6 +182,9 @@ Optional settings:
 - `organization_id` — auto-populated from API
 - `webhook_endpoint_id` — auto-populated from API
 - `checkout_flow_mode` — controls multi-item cart behavior (see section 10)
+- `multi_item_label_mode` — controls receipt label for consolidated multi-item checkouts (`first_item`, `invoice_count`, `item_list`)
+- `allow_discount_codes` — allow Polar promotional codes at checkout (default OFF)
+- `webhook_url` — auto-generated webhook endpoint URL
 
 Validation:
 
@@ -213,7 +233,32 @@ When Polar ships Stripe-like additive cart support:
 
 Adoption gate: official API support must be GA/stable + sandbox/production smoke tests pass + no regressions in webhook idempotency and refund transitions. Tracked as GitHub Issue #10.
 
-## 11) Key Files
+## 11) Hooks (6)
+
+| Hook | Type | Target | Purpose |
+|------|------|--------|---------|
+| `code_GatewayModel` | C | `\IPS\nexus\Gateway` | Register gateway in Nexus gateway map |
+| `theme_sc_clients_settle` | S | `Theme\class_nexus_front_clients` | Settlement block on customer invoice |
+| `theme_sc_print_settle` | S | `Theme\class_nexus_global_invoices` | Settlement block on printable invoice |
+| `code_memberProfileTab` | C | `core\extensions\core\MemberACPProfileTabs\Main` | ACP member profile payment summary |
+| `invoiceViewHook` | C | `nexus\modules\front\clients\invoices` | Two-column invoice view with Polar settlement |
+| `couponNameHook` | C | `\IPS\nexus\Coupon` | Coupon name display formatting |
+
+## 12) Extensions
+
+| Type | Class | Purpose |
+|------|-------|---------|
+| MemberACPProfileBlocks | PolarPaymentSummary | Transaction count, refund count, last activity |
+| AdminNotifications | PaymentIntegrity | Persistent webhook/payment integrity alerts |
+
+## 13) Tasks
+
+| Key | Interval | Purpose |
+|-----|----------|---------|
+| `xpcWebhookReplay` | 15 min | Fetch failed Polar webhook deliveries and replay to local endpoint |
+| `xpcIntegrityMonitor` | 5 min | Collect integrity stats, trigger admin notifications, prune forensics (90-day retention) |
+
+## 14) Key Files
 
 | File | Purpose |
 |------|---------|
@@ -221,11 +266,20 @@ Adoption gate: official API support must be GA/stable + sandbox/production smoke
 | `modules/front/webhook/webhook.php` | Webhook controller (Standard Webhooks sig verification) |
 | `modules/admin/monitoring/integrity.php` | ACP integrity panel |
 | `modules/admin/monitoring/forensics.php` | ACP forensics viewer |
-| `tasks/webhookReplay.php` | Webhook replay task (15min) |
-| `tasks/integrityMonitor.php` | Integrity monitor task (5min) |
+| `modules/admin/monitoring/products.php` | ACP product mapping viewer with bulk name sync |
+| `tasks/xpcWebhookReplay.php` | Webhook replay task (15min) |
+| `tasks/xpcIntegrityMonitor.php` | Integrity monitor task (5min) |
+| `hooks/code_GatewayModel.php` | Gateway registration hook |
+| `hooks/invoiceViewHook.php` | Invoice view two-column layout + global enhancements |
+| `hooks/couponNameHook.php` | Coupon name display hook |
+| `hooks/theme_sc_clients_settle.php` | Client invoice settlement display |
+| `hooks/theme_sc_print_settle.php` | Print invoice settlement display |
+| `hooks/code_memberProfileTab.php` | ACP member profile block injection |
+| `extensions/core/MemberACPProfileBlocks/PolarPaymentSummary.php` | ACP member profile block |
+| `extensions/core/AdminNotifications/PaymentIntegrity.php` | Admin notification extension |
 | `data/schema.json` | DB schema (`xpc_webhook_forensics`, `xpc_product_map`) |
 
-## 12) Local Development
+## 15) Local Development
 
 ### Polar CLI Docker Service
 

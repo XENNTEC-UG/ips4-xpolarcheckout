@@ -28,6 +28,7 @@
 | Enriched settlement snapshots | 13+ additional fields from Polar Order model (discount, billing, customer, line items) | Complete audit trail with full provider data |
 | IPS coupon forwarding | Forward IPS Nexus coupons as one-time Polar discounts with math verification | Proper discount breakdown on Polar hosted checkout |
 | Discount code control | ACP toggle for Polar-side promotional codes with automatic lockout when IPS coupon active | Prevents double-discounting |
+| ACP member profile block | Transaction count, refund count, and last activity summary on ACP member profiles | Quick member payment health at a glance |
 | **Unified XENNTEC ACP tab** | All XENNTEC apps under a single collapsible accordion sidebar tab with per-app separators and persisted state | Clean ACP navigation without per-app tab clutter |
 
 ## Capability Status
@@ -76,9 +77,6 @@
 - Tax ID collection and tax readiness monitoring (lang keys and method stubs scaffolded, not yet wired into checkout flow).
 - Dispute and chargeback tracking via Polar API (lang keys defined, data fetching not yet implemented).
 
-### Implemented but not yet listed above
-- **ACP member profile block** (`PolarPaymentSummary`): shows transaction count, refund count, and last activity on ACP member profiles.
-
 ## Capability Highlights
 
 ### Payment flow and gateway behavior
@@ -114,6 +112,7 @@
 - Integrity monitor task (5-min interval) for automated health checks.
 - Admin notification extension surfaces persistent payment integrity problems to ACP users.
 - ACP forensics viewer for webhook failure audit trail.
+- ACP member profile block showing per-member transaction count, refund count, and last activity timestamp.
 
 ### Local development
 - Polar CLI Docker service (`polar` profile) for local webhook forwarding via Polar SSE endpoint.
