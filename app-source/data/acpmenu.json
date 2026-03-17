@@ -21,5 +21,16 @@
             "restriction": "products_view",
             "subcontrollers": ""
         }
+    },
+    "xenntec": {
+        "license": {
+            "tab": "xenntec",
+            "key": "xpolarcheckout_license",
+            "title": "__app_xpolarcheckout_license",
+            "controller": "license",
+            "do": "",
+            "restriction": "manage",
+            "subcontrollers": ""
+        }
     }
 }

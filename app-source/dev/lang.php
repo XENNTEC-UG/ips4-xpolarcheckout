@@ -197,4 +197,27 @@ $lang = array(
 'menutab__xenntec'	=> 'XENNTEC Apps',
 'menutab__xenntec_icon'	=> 'times',
 
+/* License */
+'__app_xpolarcheckout_license'	=> 'License',
+'xenntec_license_key'	=> 'License Key',
+'xenntec_license_status'	=> 'Status',
+'xenntec_license_domain'	=> 'Licensed Domain',
+'xenntec_license_expiry'	=> 'License Expiry',
+'xenntec_license_perpetual'	=> 'Perpetual',
+'xenntec_license_last_checked'	=> 'Last Checked',
+'xenntec_license_recheck'	=> 'Re-check Now',
+'xenntec_license_activate'	=> 'Activate',
+'xenntec_license_change'	=> 'Change Key',
+'xenntec_license_buy'	=> 'Purchase / Renew License',
+'xenntec_lic_key_required'	=> 'Please enter a license key.',
+'xenntec_lic_activated_ok'	=> 'License activated successfully.',
+'xenntec_lic_activated_fail'	=> 'License key could not be verified. Check the key and try again.',
+'xenntec_lic_rechecked'	=> 'License re-checked.',
+'xenntec_lic_status_valid'	=> 'Active',
+'xenntec_lic_status_expiring'	=> 'Expiring Soon',
+'xenntec_lic_status_grace'	=> 'Check Failed (Grace Period)',
+'xenntec_lic_status_expired'	=> 'Expired',
+'xenntec_lic_status_invalid'	=> 'Invalid',
+'xenntec_lic_status_missing'	=> 'Not Activated',
+
 );

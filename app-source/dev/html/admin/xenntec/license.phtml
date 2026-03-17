@@ -1,0 +1,181 @@
+<ips:template parameters="$status, $cache, $maskedKey, $hasKey" />
+
+{{$activateUrl = \IPS\Http\Url::internal( 'app=xpolarcheckout&module=xenntec&controller=license&do=activate' );}}
+{{$recheckUrl  = \IPS\Http\Url::internal( 'app=xpolarcheckout&module=xenntec&controller=license&do=recheck' );}}
+{{$buyUrl      = 'https://xenntec.com/store/';}}
+
+{{if !$hasKey}}
+
+{{/* ================================================================
+     No key entered yet — show only the activation form, prominently.
+     ================================================================ */}}
+<div class="ipsBox">
+	<h2 class="ipsBox_title">{lang="__app_xpolarcheckout_license"}</h2>
+	<div class="ipsBox_content ipsPad">
+		<div class="ipsMessage ipsMessage_warning">
+			{lang="xenntec_lic_status_missing"}
+		</div>
+
+		<div class="ipsSpacing_top">
+			<form method="post" action="{expression="$activateUrl" raw="true"}">
+				<input type="hidden" name="csrfKey" value="{expression="\IPS\Session::i()->csrfKey" raw="true"}">
+				<div class="ipsFieldRow">
+					<label class="ipsFieldRow_label" for="license_key">{lang="xenntec_license_key"}</label>
+					<div class="ipsFieldRow_content">
+						<input type="text" name="license_key" id="license_key" class="ipsField_medium" placeholder="XXXX-XXXX-XXXX-XXXX" autocomplete="off">
+					</div>
+				</div>
+				<div class="ipsSpacing_top">
+					<button type="submit" class="ipsButton ipsButton_primary">{lang="xenntec_license_activate"}</button>
+					<a href="{expression="$buyUrl" raw="true"}" target="_blank" rel="noopener noreferrer" class="ipsButton ipsButton_light ipsSpacing_left">{lang="xenntec_license_buy"}</a>
+				</div>
+			</form>
+		</div>
+	</div>
+</div>
+
+{{else}}
+
+{{/* ================================================================
+     Key is present — show full status panel.
+     ================================================================ */}}
+
+{{/* Determine badge CSS class */}}
+{{if $status == 'valid'}}
+	{{$badgeClass = 'ipsLabel_positive';}}
+	{{$statusLang = 'xenntec_lic_status_valid';}}
+{{elseif $status == 'expiring'}}
+	{{$badgeClass = 'ipsLabel_warning';}}
+	{{$statusLang = 'xenntec_lic_status_expiring';}}
+{{elseif $status == 'grace'}}
+	{{$badgeClass = 'ipsLabel_warning';}}
+	{{$statusLang = 'xenntec_lic_status_grace';}}
+{{elseif $status == 'expired'}}
+	{{$badgeClass = 'ipsLabel_negative';}}
+	{{$statusLang = 'xenntec_lic_status_expired';}}
+{{elseif $status == 'invalid'}}
+	{{$badgeClass = 'ipsLabel_negative';}}
+	{{$statusLang = 'xenntec_lic_status_invalid';}}
+{{else}}
+	{{$badgeClass = '';}}
+	{{$statusLang = 'xenntec_lic_status_missing';}}
+{{endif}}
+
+<div class="ipsBox">
+	<h2 class="ipsBox_title">{lang="__app_xpolarcheckout_license"}</h2>
+	<div class="ipsBox_content">
+
+		{{/* ---- Inline notices for problem states ---- */}}
+		{{if $status == 'expiring' and $cache}}
+			{{$daysLeft = ceil( ( $cache['expires_at'] - time() ) / 86400 );}}
+			<div class="ipsMessage ipsMessage_warning ipsSpacing_bottom">
+				{lang="xenntec_lic_notice_expiring" sprintf="$daysLeft"}
+			</div>
+		{{endif}}
+
+		{{if $status == 'grace' and $cache}}
+			{{$graceDate = \IPS\DateTime::ts( (int) $cache['grace_until'] )->localeDate();}}
+			<div class="ipsMessage ipsMessage_warning ipsSpacing_bottom">
+				{lang="xenntec_lic_notice_grace" htmlsprintf="$graceDate"}
+			</div>
+		{{endif}}
+
+		{{if $status == 'expired'}}
+			<div class="ipsMessage ipsMessage_error ipsSpacing_bottom">
+				{lang="xenntec_lic_notice_expired"}
+			</div>
+		{{endif}}
+
+		{{if $status == 'invalid'}}
+			<div class="ipsMessage ipsMessage_error ipsSpacing_bottom">
+				{lang="xenntec_lic_notice_invalid"}
+			</div>
+		{{endif}}
+
+		{{/* ---- Status + detail table ---- */}}
+		<table class="ipsTable ipsTable_zebra">
+			<tbody>
+				<tr>
+					<th class="ipsTable_col1">{lang="xenntec_license_status"}</th>
+					<td>
+						<span class="ipsLabel {expression="$badgeClass" raw="true"}">{lang="$statusLang"}</span>
+					</td>
+				</tr>
+				<tr>
+					<th>{lang="xenntec_license_domain"}</th>
+					<td>
+						{{if $cache and $cache['domain']}}
+							{expression="htmlspecialchars( $cache['domain'] )" raw="true"}
+						{{else}}
+							&mdash;
+						{{endif}}
+					</td>
+				</tr>
+				<tr>
+					<th>{lang="xenntec_license_expiry"}</th>
+					<td>
+						{{if $cache and isset( $cache['expires_at'] ) and $cache['expires_at'] !== null}}
+							{expression="\IPS\DateTime::ts( (int) $cache['expires_at'] )->localeDate()" raw="true"}
+						{{else}}
+							{lang="xenntec_license_perpetual"}
+						{{endif}}
+					</td>
+				</tr>
+				<tr>
+					<th>{lang="xenntec_license_last_checked"}</th>
+					<td>
+						{{if $cache and $cache['checked_at']}}
+							{expression="\IPS\DateTime::ts( (int) $cache['checked_at'] )->localeDate()" raw="true"}
+						{{else}}
+							&mdash;
+						{{endif}}
+					</td>
+				</tr>
+				<tr>
+					<th>{lang="xenntec_license_key"}</th>
+					<td>
+						<code>{expression="htmlspecialchars( $maskedKey )" raw="true"}</code>
+						&nbsp;
+						<a href="#xenntec_change_key" data-ipsToggle="xenntec_change_key" class="ipsButton ipsButton_verySmall ipsButton_light">{lang="xenntec_license_change"}</a>
+					</td>
+				</tr>
+			</tbody>
+		</table>
+
+		{{/* ---- Change key inline form (hidden by default) ---- */}}
+		<div id="xenntec_change_key" class="ipsHide ipsSpacing_top ipsPad_half" style="border-top: 1px solid #e0e0e0; padding-top: 12px;">
+			<form method="post" action="{expression="$activateUrl" raw="true"}">
+				<input type="hidden" name="csrfKey" value="{expression="\IPS\Session::i()->csrfKey" raw="true"}">
+				<div class="ipsFieldRow">
+					<label class="ipsFieldRow_label" for="license_key_change">{lang="xenntec_license_key"}</label>
+					<div class="ipsFieldRow_content">
+						<input type="text" name="license_key" id="license_key_change" class="ipsField_medium" placeholder="XXXX-XXXX-XXXX-XXXX" autocomplete="off">
+					</div>
+				</div>
+				<div class="ipsSpacing_top">
+					<button type="submit" class="ipsButton ipsButton_primary ipsButton_small">{lang="xenntec_license_activate"}</button>
+				</div>
+			</form>
+		</div>
+
+		{{/* ---- Action buttons ---- */}}
+		<div class="ipsSpacing_top" style="border-top: 1px solid #e0e0e0; padding-top: 12px;">
+			<form method="post" action="{expression="$recheckUrl" raw="true"}" style="display:inline;">
+				<input type="hidden" name="csrfKey" value="{expression="\IPS\Session::i()->csrfKey" raw="true"}">
+				<button type="submit" class="ipsButton ipsButton_light ipsButton_small">
+					<i class="fa fa-refresh"></i> {lang="xenntec_license_recheck"}
+				</button>
+			</form>
+
+			{{if $status == 'invalid' or $status == 'expired' or $status == 'missing'}}
+			&nbsp;
+			<a href="{expression="$buyUrl" raw="true"}" target="_blank" rel="noopener noreferrer" class="ipsButton ipsButton_positive ipsButton_small">
+				<i class="fa fa-shopping-cart"></i> {lang="xenntec_license_buy"}
+			</a>
+			{{endif}}
+		</div>
+
+	</div>
+</div>
+
+{{endif}}
