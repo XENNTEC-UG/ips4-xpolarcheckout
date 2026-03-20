@@ -62,7 +62,8 @@ Handled events in `modules/front/webhook/webhook.php`:
 - `order.created` — gateway pending state (unless terminal)
 - `order.updated` — paid/refunded/partially_refunded state transitions, invoice URL fetch
 - `order.refunded` — full refund status update
-- `refund.created` / `refund.updated` — partial/full refund based on amounts
+- `refund.created` — acknowledged without state change (no-op)
+- `refund.updated` — partial/full refund based on amounts
 - `checkout.updated` — failed/expired checkout → STATUS_REFUSED
 
 Security layers:
@@ -122,7 +123,7 @@ The `invoiceViewHook` also applies global enhancements to all invoices (not just
 
 - Gateway is injected via hook into `\IPS\nexus\Gateway::gateways()`.
 - Polar API base URLs: production `https://api.polar.sh/v1`, sandbox `https://sandbox-api.polar.sh/v1`.
-- Polar API trailing slashes cause 307 redirects — all URLs use no-slash format.
+- Polar API trailing slash behavior varies by endpoint — creation endpoints use trailing slashes (`/products/`, `/checkouts/`), while list/read endpoints use no trailing slash.
 - Default presentment currency is synced to Polar org via API on gateway settings save.
 - Checkout currency must match the configured presentment currency or auth() returns an error.
 - Replay task uses Polar webhook deliveries API (not events API like Stripe) — fetches failed deliveries for replay.

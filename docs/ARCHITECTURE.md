@@ -12,7 +12,7 @@ Production-ready IPS4 Nexus payment gateway app (`xpolarcheckout`) backed by Pol
 
 ## 3) Current State
 
-- Version: `1.0.11` / `10011` (as of 2026-03-05)
+- Version: `1.0.13` / `10013`
 - Gateway registration and recovery shipped in `v1.0.1`
 - Standard Webhooks signature validation hardening implemented
 - Forensics table: `xpc_webhook_forensics`
@@ -60,10 +60,12 @@ Production-ready IPS4 Nexus payment gateway app (`xpolarcheckout`) backed by Pol
 - Inputs: IPS transaction id, invoice id, amount/currency, return/cancel URLs, member identity metadata
 - Output: provider checkout URL, provider checkout id
 - Rules:
-  - Do not mutate transaction state during session creation
-  - Persist provider checkout id in `t_extra` for traceability
+  - Transaction is set to `STATUS_GATEWAY_PENDING` before session creation to persist `$transaction->id`
+  - Persist provider checkout id in `t_gw_id` for traceability
   - Explicit `currency` field in checkout payload (must match configured presentment currency)
-  - One generic Polar product (`default_product_id`) with per-transaction price override via `prices` array
+  - Dynamic Polar product mapping per IPS package via `ensurePolarProduct()`, with fallback to generic `default_product_id`
+  - Per-transaction price override via `prices` array
+  - Multi-item invoices consolidated into single product with combined total (Polar does not support additive multi-line checkout)
 
 ### 6.2 Webhook Verification
 
@@ -82,7 +84,8 @@ Map provider event families into IPS status transitions (7 required events):
 - `order.paid` → `STATUS_PAID` + snapshot + invoice generation
 - `order.updated` → paid/refunded/partially_refunded state transitions + invoice URL fetch
 - `order.refunded` → `STATUS_REFUNDED`
-- `refund.created` / `refund.updated` → partial: `STATUS_PART_REFUNDED`, full: `STATUS_REFUNDED`
+- `refund.created` → no-op (acknowledged without state change)
+- `refund.updated` → partial: `STATUS_PART_REFUNDED`, full: `STATUS_REFUNDED`
 - `checkout.updated` (failed/expired) → `STATUS_REFUSED`
 
 Invariants:
@@ -115,8 +118,8 @@ Normalized keys under `xpolarcheckout_*` namespace:
 
 - `xpolarcheckout_snapshot` — full settlement snapshot (totals, tax, discount, billing, customer, provider status, invoice URLs, refund amounts)
 - `xpolarcheckout_webhook_events` — recent webhook event IDs for idempotency (last 50)
-- `xpolarcheckout_refund` — refund evidence data
-- `xpolarcheckout_checkout_id` — Polar checkout session ID for traceability
+- `history[]` — event transition history entries (event type, timestamp, status transitions)
+- Polar checkout/order ID is stored in `nexus_transactions.t_gw_id` (updated from checkout UUID to order UUID on `order.created`/`order.paid`)
 
 ### 7.2 Invoice Metadata (`i_status_extra`)
 
@@ -167,23 +170,25 @@ Read-only render fields for customer/print settlement blocks:
 Required settings:
 
 - `access_token` — Polar Organization Access Token
+- `default_product_id` — generic Polar product for ad-hoc pricing
 - `webhook_secret` — Standard Webhooks signing secret
 - `environment` — `sandbox` or `production`
-- `replay_lookback_seconds`
-- `replay_overlap_seconds`
-- `replay_max_events`
 
-Optional settings:
+Configurable settings:
 
-- `default_product_id` — generic Polar product for ad-hoc pricing
-- `enable_integrity_alerts`
-- `signature_tolerance_seconds`
-- `default_presentment_currency` — synced to Polar org via API on save
-- `organization_id` — auto-populated from API
-- `webhook_endpoint_id` — auto-populated from API
-- `checkout_flow_mode` — controls multi-item cart behavior (see section 10)
+- `replay_lookback` — replay lookback window in seconds (300-86400, default 3600)
+- `replay_overlap` — overlap window in seconds (60-1800, default 300)
+- `replay_max_events` — max events per replay run (10-100, default 100)
+- `presentment_currency` — checkout currency code (default `eur`), synced to Polar org via API on save
+- `checkout_flow_mode` — controls multi-item cart behavior: `allow_all` or `single_item_only` (see section 10)
 - `multi_item_label_mode` — controls receipt label for consolidated multi-item checkouts (`first_item`, `invoice_count`, `item_list`)
 - `allow_discount_codes` — allow Polar promotional codes at checkout (default OFF)
+
+Auto-populated settings:
+
+- `organization_id` — auto-populated from API on save
+- `organization_default_presentment_currency` — auto-populated from API on save
+- `webhook_endpoint_id` — auto-populated from API on first save
 - `webhook_url` — auto-generated webhook endpoint URL
 
 Validation:
@@ -292,6 +297,6 @@ Adoption gate: official API support must be GA/stable + sandbox/production smoke
 
 ### Known Constraints
 
-- Polar API trailing slashes cause 307 redirects — use no-slash URLs
+- Polar API trailing slash behavior varies by endpoint — some endpoints require trailing slashes (e.g. `/products/`, `/checkouts/`, `/refunds/`), while list endpoints use no trailing slash (e.g. `/webhooks/endpoints`)
 - Polar checkout API requires `default_presentment_currency` to match org setting
 - Webhook endpoint API operations require `webhooks:read` + `webhooks:write` token scopes

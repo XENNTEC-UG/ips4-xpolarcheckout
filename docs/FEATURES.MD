@@ -41,7 +41,7 @@
 - ACP integrity module with environment badge (sandbox/production).
 - Polar checkout creation API flow with currency-aware minor-unit conversion.
 - ACP presentment-currency control that syncs Polar org default presentment currency on save.
-- Polar event map: `order.updated`, `order.refunded`, `checkout.updated`, `refund.updated` with safe state transition helpers and terminal-state guardrails.
+- Polar event map: `order.created`, `order.paid`, `order.updated`, `order.refunded`, `refund.created`, `refund.updated`, `checkout.updated` with safe state transition helpers and terminal-state guardrails.
 - Polar refund API integration with sandbox-validated request schema.
 - Replay pipeline sourced from Polar `/v1/webhooks/deliveries` API with deduplication, dry-run mode, and persisted replay cursor.
 - Configurable replay guardrails: lookback, overlap, and max events with clamped bounds.
