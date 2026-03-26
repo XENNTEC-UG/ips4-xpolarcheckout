@@ -111,6 +111,19 @@ Invariants:
 - Live mode re-forwards payloads with Standard Webhooks headers/signature
 - Guardrails: lookback window, overlap, max events, max pages, max runtime
 
+### 6.6 Invoice View Helper (`sources/Invoice/ViewHelper.php`)
+
+`IPS\xpolarcheckout\Invoice\_ViewHelper`
+
+Centralises all invoice rendering logic that the thin `invoiceViewHook` delegates to. Every public method is a pure function (input in, string out, no side effects):
+
+- **`buildPolarSummary($snapshot)`**: Builds Polar Charge Summary HTML (subtotal, discount, net subtotal, tax, total, refunded amount, status badge, mismatch warnings, tax exemption/IDs).
+- **`buildPaymentRefs($snapshot)`**: Builds Payment & References HTML (payment method, captured timestamp, Polar order/checkout IDs, invoice/PDF/receipt links, billing details, source of truth footer).
+- **`wrapInColumns($output, $polarSummary)`**: Finds Order Details box and wraps it with Polar summary in a two-column layout (with shipments-mode fallback).
+- **`insertPaymentRefs($output, $paymentRefs)`**: Inserts Payment & References section after the columns layout marker.
+- **`enhanceOrderDetails($output, $invoice)`**: Global enhancements for all invoices (not just Polar): products subtotal before coupons, coupon tag icons, green discount styling, duplicate coupon section hiding. Includes idempotency guard for dual-app installations.
+- **`productsSubtotal($invoice)`**: Computes products-only subtotal excluding coupons and shipping.
+
 ## 7) Data Contract
 
 ### 7.1 Transaction Metadata (`t_extra`)
@@ -137,7 +150,14 @@ Read-only render fields for customer/print settlement blocks:
   - Provider status (`provider_status`)
   - IPS comparison (`ips_invoice_total_minor`, `ips_invoice_total_display`, `has_total_mismatch`, `total_mismatch_display`, `total_difference_tax_explained`)
 
-### 7.3 Forensics Table
+### 7.3 Datastore Keys
+
+- `xpolarcheckout_webhook_replay_state` — cursor timestamp + last-replayed count for replay task
+- `xpolarcheckout_checkout_label_products` — cached product lookup table for multi-item label modes (max 200 entries)
+- `xpc_webhook_errors_ack_at` — webhook error acknowledgment timestamp for integrity panel
+- `xpc_forensics_last_cleaned` — last forensics cleanup timestamp (daily pruning)
+
+### 7.4 Forensics Table
 
 `xpc_webhook_forensics` — audit trail for:
 
@@ -148,7 +168,7 @@ Read-only render fields for customer/print settlement blocks:
 - Unexpected processing exceptions
 - 90-day retention via cleanup task
 
-### 7.4 Product Mapping Table
+### 7.5 Product Mapping Table
 
 `xpc_product_map` — IPS ↔ Polar product mapping:
 
@@ -269,6 +289,7 @@ Adoption gate: official API support must be GA/stable + sandbox/production smoke
 | File | Purpose |
 |------|---------|
 | `sources/XPolarCheckout/XPolarCheckout.php` | Gateway class (auth, refund, testSettings, settings) |
+| `sources/Invoice/ViewHelper.php` | Invoice view helper (settlement HTML builders, column layout, order detail enhancements) |
 | `modules/front/webhook/webhook.php` | Webhook controller (Standard Webhooks sig verification) |
 | `modules/admin/monitoring/integrity.php` | ACP integrity panel |
 | `modules/admin/monitoring/forensics.php` | ACP forensics viewer |

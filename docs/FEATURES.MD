@@ -8,6 +8,10 @@
 | --- | --- | --- |
 | `1.0.16` | `10016` | `app-source/data/application.json` |
 
+## Requirements
+
+- PHP 8.1 or higher
+
 ## Product Positioning
 
 `xpolarcheckout` provides a maintainable IPS-native payment layer around Polar-hosted checkout and webhook-driven reconciliation.

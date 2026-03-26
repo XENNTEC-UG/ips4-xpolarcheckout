@@ -16,6 +16,8 @@ Adds a Polar Checkout payment gateway implementation for IPS Nexus with hosted c
 
 - Gateway class:
   - `app-source/sources/XPolarCheckout/XPolarCheckout.php`
+- Invoice view helper:
+  - `app-source/sources/Invoice/ViewHelper.php`
 - Webhook controller:
   - `app-source/modules/front/webhook/webhook.php`
 - ACP integrity panel:

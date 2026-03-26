@@ -13,6 +13,7 @@ Polar payment gateway for IPS Nexus. Provides hosted checkout redirect, webhook-
 ## Source Paths
 
 - Gateway: `app-source/sources/XPolarCheckout/XPolarCheckout.php`
+- Invoice view helper: `app-source/sources/Invoice/ViewHelper.php`
 - Application bootstrap: `app-source/Application.php`
 - Webhook controller: `app-source/modules/front/webhook/webhook.php`
 - ACP integrity panel: `app-source/modules/admin/monitoring/integrity.php`
