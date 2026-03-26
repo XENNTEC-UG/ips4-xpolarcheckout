@@ -12,7 +12,7 @@ Production-ready IPS4 Nexus payment gateway app (`xpolarcheckout`) backed by Pol
 
 ## 3) Current State
 
-- Version: `1.0.13` / `10013`
+- Version: `1.0.16` / `10016`
 - Gateway registration and recovery shipped in `v1.0.1`
 - Standard Webhooks signature validation hardening implemented
 - Forensics table: `xpc_webhook_forensics`
@@ -21,6 +21,7 @@ Production-ready IPS4 Nexus payment gateway app (`xpolarcheckout`) backed by Pol
 - Paid checkout verified (v1.0.2), invoice generation + settlement snapshots (v1.0.5)
 - IPS coupon forwarding (v1.0.6), dynamic product mapping (v1.0.3)
 - Refund flow implemented, pending end-to-end test (GitHub Issue #8)
+- Invoice view helper extracted to `sources/Invoice/ViewHelper.php` for two-column settlement layout
 
 ## 4) Reuse Strategy
 
