@@ -678,7 +678,7 @@ class _XPolarCheckout extends \IPS\nexus\Gateway
             'duration' => 'once',
         ) );
 
-        $response = \IPS\Http\Url::external( $apiBase . '/v1/discounts' )
+        $response = \IPS\Http\Url::external( $apiBase . '/discounts' )
             ->request( 20 )
             ->setHeaders( array(
                 'Authorization' => 'Bearer ' . $accessToken,

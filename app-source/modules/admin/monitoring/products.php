@@ -80,7 +80,7 @@ class _products extends \IPS\Dispatcher\Controller
 		/* Sync All Names button */
 		$syncUrl = \IPS\Http\Url::internal( 'app=xpolarcheckout&module=monitoring&controller=products&do=syncAll' )->csrf();
 		$syncLabel = \IPS\Member::loggedIn()->language()->addToStack( 'xpc_sync_all_names' );
-		$buttons = '<a href="' . $syncUrl . '" class="ipsButton ipsButton--small ipsButton--primary" data-confirm>' . $syncLabel . '</a>';
+		$buttons = '<a href="' . \htmlspecialchars( (string) $syncUrl, ENT_QUOTES | ENT_DISALLOWED, 'UTF-8' ) . '" class="ipsButton ipsButton--small ipsButton--primary" data-confirm>' . $syncLabel . '</a>';
 
 		\IPS\Output::i()->title = \IPS\Member::loggedIn()->language()->addToStack( 'xpc_product_map_title' );
 		\IPS\Output::i()->output = $buttons . (string) $table;
