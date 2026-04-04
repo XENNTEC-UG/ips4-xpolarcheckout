@@ -994,6 +994,8 @@ class _webhook extends \IPS\Dispatcher\Controller
     /**
      * Convert Money value to minor units.
      *
+     * SYNC-GROUP: gateway-minor-unit — also in xstripecheckout, xpaynowcheckout (gateway + webhook)
+     *
      * @param \IPS\nexus\Money $money
      * @return int
      */

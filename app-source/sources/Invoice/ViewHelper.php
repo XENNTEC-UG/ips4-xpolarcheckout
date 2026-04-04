@@ -334,6 +334,8 @@ class _ViewHelper
 	/**
 	 * Find Order Details box and wrap in two-column layout
 	 *
+	 * SYNC-GROUP: viewhelper-layout — also in xstripecheckout ViewHelper
+	 *
 	 * @param	string	$output			Current page output
 	 * @param	string	$polarSummary	Polar Charge Summary HTML
 	 * @return	string
@@ -402,6 +404,8 @@ class _ViewHelper
 	/**
 	 * Find the matching closing </div> for a div starting at $startPos
 	 *
+	 * SYNC-GROUP: viewhelper-layout — also in xstripecheckout ViewHelper
+	 *
 	 * @param	string	$html		HTML string
 	 * @param	int		$startPos	Position of the opening <div
 	 * @return	int|false			Position after the closing </div>, or false
@@ -443,6 +447,8 @@ class _ViewHelper
 
 	/**
 	 * Insert Payment & References section after the columns layout
+	 *
+	 * SYNC-GROUP: viewhelper-layout — also in xstripecheckout ViewHelper
 	 *
 	 * @param	string	$output			Current page output
 	 * @param	string	$paymentRefs	Payment & References HTML
@@ -594,6 +600,8 @@ class _ViewHelper
 
 	/**
 	 * Compute products-only subtotal from invoice items (excludes coupons and shipping)
+	 *
+	 * SYNC-GROUP: viewhelper-order-enhance — also in xstripecheckout ViewHelper
 	 *
 	 * @param	\IPS\nexus\Invoice	$invoice	The invoice object
 	 * @return	\IPS\nexus\Money|null	Returns null if no coupon items exist

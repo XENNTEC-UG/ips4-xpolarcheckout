@@ -602,6 +602,8 @@ class _XPolarCheckout extends \IPS\nexus\Gateway
     /**
      * Calculate total invoice discount from negative-amount items (coupons, gateway discounts).
      *
+     * SYNC-GROUP: gateway-invoice-discount — also in xstripecheckout, xpaynowcheckout
+     *
      * @param   \IPS\nexus\Transaction $transaction
      * @return  array   array( 'amount_minor' => int, 'names' => array )
      */
@@ -1618,6 +1620,8 @@ class _XPolarCheckout extends \IPS\nexus\Gateway
 
     /**
      * Convert Money to integer minor unit.
+     *
+     * SYNC-GROUP: gateway-minor-unit — also in xstripecheckout, xpaynowcheckout (gateway + webhook)
      *
      * @param   \IPS\nexus\Money $money
      * @return  int
