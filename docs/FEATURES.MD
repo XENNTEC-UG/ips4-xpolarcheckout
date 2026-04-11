@@ -6,7 +6,7 @@
 
 | Version | Long Version | Source |
 | --- | --- | --- |
-| `1.0.17` | `10017` | `app-source/data/application.json` |
+| `1.0.18` | `10018` | `app-source/data/application.json` |
 
 ## Requirements
 
