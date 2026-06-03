@@ -32,7 +32,7 @@ $lang = array(
 'menu__xpolarcheckout_monitoring'	=> 'X Polar Checkout',
 'menu__xpolarcheckout_monitoring_integrity'	=> 'Payment Integrity',
 'xpolarcheckout_integrity_title'	=> 'Polar Checkout Integrity',
-'xpolarcheckout_integrity_intro'	=> 'Operational visibility panel for Polar webhook health, replay status, and provider-vs-IPS settlement mismatches.',
+'xpolarcheckout_integrity_intro'	=> 'This panel shows Polar webhook health, replay status, and any provider-vs-IPS settlement mismatches.',
 'xpolarcheckout_integrity_replay_now'	=> 'Run Webhook Replay Now',
 'xpolarcheckout_integrity_replay_success'	=> 'Webhook replay executed successfully.',
 'xpolarcheckout_integrity_replay_no_events'	=> 'Webhook replay executed and found no replayable events.',
@@ -144,7 +144,7 @@ $lang = array(
 'xpc_sync_all_names'	=> 'Sync All Names',
 'xpc_sync_complete'	=> 'Product names synchronized',
 'xpc_sync_no_gateway'	=> 'No Polar Checkout gateway found',
-'xpc_product_create_failed'	=> 'Could not create Polar product for package %s — using default product',
+'xpc_product_create_failed'	=> 'Could not create Polar product for package %s; using default product',
 'xpc_product_name_synced'	=> 'Updated Polar product name: %s',
 
 /* Webhook Forensics */
