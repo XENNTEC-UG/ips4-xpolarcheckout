@@ -2,7 +2,7 @@
 
 ## 1) Objective
 
-Production-ready IPS4 Nexus payment gateway app (`xpolarcheckout`) backed by Polar hosted checkout and Polar webhooks, preserving proven reliability patterns from the existing gateway architecture (sibling to `xstripecheckout` and `xpaynowcheckout`).
+Production-ready IPS4 Nexus payment gateway app (`xpolarcheckout`) backed by Polar hosted checkout and Polar webhooks, preserving proven reliability patterns from the existing gateway architecture (sibling to `xstripecheckout`).
 
 ## 2) External References
 

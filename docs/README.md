@@ -1,6 +1,6 @@
 # X Polar Checkout
 
-Polar payment gateway for IPS Nexus. Provides hosted checkout redirect, webhook-driven reconciliation with Standard Webhooks signature validation, refund processing, and operational tooling (integrity panel, forensics viewer, webhook replay). Uses dynamic product mapping (`xpc_product_map`) for IPS-to-Polar product linkage. Local webhook forwarding via `polar-cli` Docker service (SSE tunnel, auto-syncs gateway settings from `.env`). Sibling architecture to `xstripecheckout` (Stripe) and `xpaynowcheckout` (PayNow).
+Polar payment gateway for IPS Nexus. Provides hosted checkout redirect, webhook-driven reconciliation with Standard Webhooks signature validation, refund processing, and operational tooling (integrity panel, forensics viewer, webhook replay). Uses dynamic product mapping (`xpc_product_map`) for IPS-to-Polar product linkage. Local webhook forwarding via `polar-cli` Docker service (SSE tunnel, auto-syncs gateway settings from `.env`). Sibling architecture to `xstripecheckout` (Stripe).
 
 ## Read Order
 
