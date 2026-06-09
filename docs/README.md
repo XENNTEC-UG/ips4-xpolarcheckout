@@ -4,11 +4,11 @@ Polar payment gateway for IPS Nexus. Provides hosted checkout redirect, webhook-
 
 ## Read Order
 
-1. [GitHub Issues](https://github.com/XENNTEC-UG/ips4-xpolarcheckout/issues) — open work items
-2. [ARCHITECTURE.md](ARCHITECTURE.md) — architecture, Polar API contracts, data model
-3. [FEATURES.MD](FEATURES.MD) — capability overview
-4. [FLOW.md](FLOW.md) — runtime flows
-5. [TEST_RUNTIME.md](TEST_RUNTIME.md) — manual verification checklist
+1. [GitHub Issues](https://github.com/XENNTEC-UG/ips4-xpolarcheckout/issues): open work items
+2. [ARCHITECTURE.md](ARCHITECTURE.md): architecture, Polar API contracts, data model
+3. [FEATURES.MD](FEATURES.MD): capability overview
+4. [FLOW.md](FLOW.md): runtime flows
+5. [TEST_RUNTIME.md](TEST_RUNTIME.md): manual verification checklist
 
 ## Source Paths
 
