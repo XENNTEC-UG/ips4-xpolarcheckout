@@ -1,6 +1,6 @@
 # X Polar Checkout
 
-Polar payment gateway for IPS Nexus. Provides hosted checkout redirect, webhook-driven reconciliation with Standard Webhooks signature validation, refund processing, and operational tooling (integrity panel, forensics viewer, webhook replay). Uses dynamic product mapping (`xpc_product_map`) for IPS-to-Polar product linkage. Local webhook forwarding via `polar-cli` Docker service (SSE tunnel, auto-syncs gateway settings from `.env`). Sibling architecture to `xstripecheckout` (Stripe).
+`xpolarcheckout` is a public IPS4 Commerce payment gateway for Polar hosted checkout. It creates checkout sessions from Nexus transactions, redirects buyers to Polar, and treats signed Polar webhooks as the authoritative payment path. The webhook controller correlates provider events to Nexus transactions, runs the IPS fraud and capture pipeline for paid events, records settlement snapshots, and handles refund state changes. The app also provides product mapping, invoice settlement displays, webhook forensics, integrity monitoring, and failed-delivery replay. Local webhook forwarding is available through the main repository's `polar-cli` Docker service.
 
 ## Read Order
 
@@ -33,7 +33,7 @@ Polar payment gateway for IPS Nexus. Provides hosted checkout redirect, webhook-
 
 ## Source of Truth
 
-- App code: `ips-dev-source/apps/xpolarcheckout/app-source/`
+- Source: `ips-dev-source/apps/xpolarcheckout/app-source/`
 - Runtime copy: `data/ips/applications/xpolarcheckout/` (synced via `ips-dev-sync.ps1`)
 
 ## Global Context

@@ -1,8 +1,8 @@
-# X Polar Checkout — Architecture
+# X Polar Checkout Architecture
 
 ## 1) Objective
 
-Production-ready IPS4 Nexus payment gateway app (`xpolarcheckout`) backed by Polar hosted checkout and Polar webhooks, preserving proven reliability patterns from the existing gateway architecture (sibling to `xstripecheckout`).
+IPS4 Nexus payment gateway app (`xpolarcheckout`) backed by Polar hosted checkout and Polar webhooks. The source follows several reconciliation and settlement display patterns also used by `xstripecheckout`.
 
 ## 2) External References
 
@@ -12,7 +12,7 @@ Production-ready IPS4 Nexus payment gateway app (`xpolarcheckout`) backed by Pol
 
 ## 3) Current State
 
-- Version: `1.0.16` / `10016`
+- Version: `1.0.19` / `10019`
 - Gateway registration and recovery shipped in `v1.0.1`
 - Standard Webhooks signature validation hardening implemented
 - Forensics table: `xpc_webhook_forensics`
@@ -81,13 +81,13 @@ Production-ready IPS4 Nexus payment gateway app (`xpolarcheckout`) backed by Pol
 
 Map provider event families into IPS status transitions (7 required events):
 
-- `order.created` → gateway pending state (unless terminal)
-- `order.paid` → `STATUS_PAID` + snapshot + invoice generation
-- `order.updated` → paid/refunded/partially_refunded state transitions + invoice URL fetch
-- `order.refunded` → `STATUS_REFUNDED`
-- `refund.created` → no-op (acknowledged without state change)
-- `refund.updated` → partial: `STATUS_PART_REFUNDED`, full: `STATUS_REFUNDED`
-- `checkout.updated` (failed/expired) → `STATUS_REFUSED`
+- `order.created`: store the Polar order ID and set gateway pending unless the transaction is terminal
+- `order.paid`: run `checkFraudRulesAndCapture()`, persist the snapshot, then request Polar invoice generation
+- `order.updated`: apply paid or refund state from the order, then fetch the invoice URL when generation is complete
+- `order.refunded`: derive full or partial refund state from the order amounts
+- `refund.created`: acknowledge without a state change
+- `refund.updated`: apply full or partial refund state only when the refund status is `succeeded`
+- `checkout.updated`: keep `open` and `confirmed` pending, capture `succeeded`, and refuse `failed` or `expired` unless already terminal
 
 Invariants:
 
@@ -130,16 +130,16 @@ Centralises all invoice rendering logic that the thin `invoiceViewHook` delegate
 
 Normalized keys under `xpolarcheckout_*` namespace:
 
-- `xpolarcheckout_snapshot` — full settlement snapshot (totals, tax, discount, billing, customer, provider status, invoice URLs, refund amounts)
-- `xpolarcheckout_webhook_events` — recent webhook event IDs for idempotency (last 50)
-- `history[]` — event transition history entries (event type, timestamp, status transitions)
+- `xpolarcheckout_snapshot`: full settlement snapshot (totals, tax, discount, billing, customer, provider status, invoice URLs, refund amounts)
+- `xpolarcheckout_webhook_events`: recent webhook event IDs for idempotency (last 50)
+- `history[]`: event transition history entries (event type, timestamp, status transitions)
 - Polar checkout/order ID is stored in `nexus_transactions.t_gw_id` (updated from checkout UUID to order UUID on `order.created`/`order.paid`)
 
 ### 7.2 Invoice Metadata (`i_status_extra`)
 
 Read-only render fields for customer/print settlement blocks:
 
-- `xpolarcheckout_snapshot` — same snapshot structure as transaction, includes:
+- `xpolarcheckout_snapshot`: same snapshot structure as transaction, includes:
   - Settlement totals (`amount_total_minor`, `amount_total_display`, `amount_subtotal_minor`, `amount_tax_minor`)
   - Discount fields (`discount_amount_minor`, `discount_amount_display`, `discount_name`, `discount_code`)
   - Net amount (`net_amount_minor`, `net_amount_display`)
@@ -152,25 +152,24 @@ Read-only render fields for customer/print settlement blocks:
 
 ### 7.3 Datastore Keys
 
-- `xpolarcheckout_webhook_replay_state` — cursor timestamp + last-replayed count for replay task
-- `xpolarcheckout_checkout_label_products` — cached product lookup table for multi-item label modes (max 200 entries)
-- `xpc_webhook_errors_ack_at` — webhook error acknowledgment timestamp for integrity panel
-- `xpc_forensics_last_cleaned` — last forensics cleanup timestamp (daily pruning)
+- `xpolarcheckout_webhook_replay_state`: cursor timestamp and last replayed count for the replay task
+- `xpolarcheckout_checkout_label_products`: cached product lookup table for multi-item label modes (max 200 entries)
+- `xpc_webhook_errors_ack_at`: webhook error acknowledgment timestamp for integrity panel
+- `xpc_forensics_last_cleaned`: last forensics cleanup timestamp (daily pruning)
 
 ### 7.4 Forensics Table
 
-`xpc_webhook_forensics` — audit trail for:
+`xpc_webhook_forensics` stores an audit trail for:
 
 - Missing signature header
 - Invalid signature
 - Stale timestamp
 - Malformed payload
-- Unexpected processing exceptions
 - 90-day retention via cleanup task
 
 ### 7.5 Product Mapping Table
 
-`xpc_product_map` — IPS ↔ Polar product mapping:
+`xpc_product_map` maps IPS package IDs to Polar product IDs:
 
 | Column | Type | Purpose |
 |--------|------|---------|
@@ -190,27 +189,27 @@ Read-only render fields for customer/print settlement blocks:
 
 Required settings:
 
-- `access_token` — Polar Organization Access Token
-- `default_product_id` — generic Polar product for ad-hoc pricing
-- `webhook_secret` — Standard Webhooks signing secret
-- `environment` — `sandbox` or `production`
+- `access_token`: Polar Organization Access Token
+- `default_product_id`: generic Polar product for ad-hoc pricing
+- `webhook_secret`: Standard Webhooks signing secret
+- `environment`: `sandbox` or `production`
 
 Configurable settings:
 
-- `replay_lookback` — replay lookback window in seconds (300-86400, default 3600)
-- `replay_overlap` — overlap window in seconds (60-1800, default 300)
-- `replay_max_events` — max events per replay run (10-100, default 100)
-- `presentment_currency` — checkout currency code (default `eur`), synced to Polar org via API on save
-- `checkout_flow_mode` — controls multi-item cart behavior: `allow_all` or `single_item_only` (see section 10)
-- `multi_item_label_mode` — controls receipt label for consolidated multi-item checkouts (`first_item`, `invoice_count`, `item_list`)
-- `allow_discount_codes` — allow Polar promotional codes at checkout (default OFF)
+- `replay_lookback`: replay lookback window in seconds (300-86400, default 3600)
+- `replay_overlap`: overlap window in seconds (60-1800, default 300)
+- `replay_max_events`: max events per replay run (10-100, default 100)
+- `presentment_currency`: checkout currency code (default `eur`), synced to the Polar organization via API on save
+- `checkout_flow_mode`: controls multi-item cart behavior, either `allow_all` or `single_item_only` (see section 10)
+- `multi_item_label_mode`: controls the receipt label for consolidated multi-item checkouts (`first_item`, `invoice_count`, `item_list`)
+- `allow_discount_codes`: allows Polar promotional codes at checkout (default off)
 
 Auto-populated settings:
 
-- `organization_id` — auto-populated from API on save
-- `organization_default_presentment_currency` — auto-populated from API on save
-- `webhook_endpoint_id` — auto-populated from API on first save
-- `webhook_url` — auto-generated webhook endpoint URL
+- `organization_id`: populated from the API on save
+- `organization_default_presentment_currency`: populated from the API on save
+- `webhook_endpoint_id`: populated from the API on first save
+- `webhook_url`: generated webhook endpoint URL
 
 Validation:
 
@@ -221,13 +220,14 @@ Validation:
 
 ## 9) Security Model
 
-- Verify signatures before any payload processing
+- Resolve the transaction and gateway settings before signature verification
+- Verify signatures before transaction state changes or snapshot persistence
 - Reject stale deliveries
 - Validate all externally provided URLs before persistence
-- Use strict allowlist for accepted event types
+- Apply state transitions only for the seven event types listed in section 6.3
 - Keep forensics logs for at least 90 days
 - Maintain CSRF checks on ACP actions
-- Invalid gateway settings on webhook → return 400 (not 500)
+- Invalid gateway settings on webhook return HTTP 400 instead of HTTP 500
 
 ## 10) Multi-Cart Strategy
 
@@ -239,8 +239,8 @@ Polar does not yet support additive multi-line checkout (multiple distinct produ
 
 ACP-controlled checkout routing:
 
-- `Allow Polar for all carts` — consolidated single-line checkout for multi-item carts
-- `Hybrid route: show Polar only for single-item carts` — hides Polar for multi-item invoices
+- `Allow Polar for all carts`: consolidated single-line checkout for multi-item carts
+- `Hybrid route: show Polar only for single-item carts`: hides Polar for multi-item invoices
 
 For consolidated multi-item payments, ACP-controlled label modes:
 - Legacy first-item
@@ -319,6 +319,6 @@ Adoption gate: official API support must be GA/stable + sandbox/production smoke
 
 ### Known Constraints
 
-- Polar API trailing slash behavior varies by endpoint — some endpoints require trailing slashes (e.g. `/products/`, `/checkouts/`, `/refunds/`), while list endpoints use no trailing slash (e.g. `/webhooks/endpoints`)
+- Polar API trailing slash behavior varies by endpoint. Some endpoints require trailing slashes (for example, `/products/`, `/checkouts/`, `/refunds/`), while list endpoints use no trailing slash (for example, `/webhooks/endpoints`).
 - Polar checkout API requires `default_presentment_currency` to match org setting
 - Webhook endpoint API operations require `webhooks:read` + `webhooks:write` token scopes

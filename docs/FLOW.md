@@ -1,132 +1,147 @@
 # X Polar Checkout Flow
 
-This document tracks runtime flows and entry points for IPS app `xpolarcheckout`.
+This document describes the runtime entry points and event flows for IPS app `xpolarcheckout`.
 
-**Related docs:**
-- [README.md](README.md) - entrypoint + source paths
-- [GitHub Issues](https://github.com/XENNTEC-UG/ips4-xpolarcheckout/issues) — open work items
-- [TEST_RUNTIME.md](TEST_RUNTIME.md) - runtime checks
-- [GitHub Releases](https://github.com/XENNTEC-UG/ips4-xpolarcheckout/releases) - version history
+## Related Documentation
 
-## 1. Purpose
+- [GitHub Issues](https://github.com/XENNTEC-UG/ips4-xpolarcheckout/issues): open work items
+- [README.md](README.md): purpose and source paths
+- [ARCHITECTURE.md](ARCHITECTURE.md): components and data contracts
+- [FEATURES.MD](FEATURES.MD): implemented capabilities
+- [TEST_RUNTIME.md](TEST_RUNTIME.md): runtime verification checks
 
-Adds a Polar Checkout payment gateway implementation for IPS Nexus with hosted checkout, webhook reconciliation, and operational tooling.
+## Main Entry Points
 
-## 2. Main Entry Points
+| Entry point | Source | Responsibility |
+| --- | --- | --- |
+| Nexus gateway | `app-source/sources/XPolarCheckout/XPolarCheckout.php` | Settings, validity checks, checkout session creation, refunds, provider helpers |
+| Front webhook controller | `app-source/modules/front/webhook/webhook.php` | Signature validation, transaction correlation, state transitions, snapshots, invoice generation |
+| ACP integrity controller | `app-source/modules/admin/monitoring/integrity.php` | Health display, replay actions, forensic acknowledgment and deletion, endpoint event synchronization |
+| ACP forensics controller | `app-source/modules/admin/monitoring/forensics.php` | Webhook failure records |
+| ACP products controller | `app-source/modules/admin/monitoring/products.php` | Product mappings and bulk name synchronization |
+| Replay task | `app-source/tasks/xpcWebhookReplay.php` | Failed delivery retrieval and signed local replay |
+| Integrity task | `app-source/tasks/xpcIntegrityMonitor.php` | Local integrity notifications and forensic retention |
+| Invoice view helper | `app-source/sources/Invoice/ViewHelper.php` | Settlement HTML and invoice detail enhancements |
+| Hooks and extensions | `app-source/data/hooks.json`, `app-source/data/extensions.json` | Nexus registration, invoice output, coupon names, ACP profile block, notifications |
 
-- Gateway class:
-  - `app-source/sources/XPolarCheckout/XPolarCheckout.php`
-- Invoice view helper:
-  - `app-source/sources/Invoice/ViewHelper.php`
-- Webhook controller:
-  - `app-source/modules/front/webhook/webhook.php`
-- ACP integrity panel:
-  - `app-source/modules/admin/monitoring/integrity.php`
-- ACP forensics viewer:
-  - `app-source/modules/admin/monitoring/forensics.php`
-- ACP product mappings:
-  - `app-source/modules/admin/monitoring/products.php`
-- Webhook replay task:
-  - `app-source/tasks/xpcWebhookReplay.php`
-- Integrity monitor task:
-  - `app-source/tasks/xpcIntegrityMonitor.php`
-- Hook registration:
-  - `app-source/data/hooks.json`
-  - `app-source/hooks/code_GatewayModel.php`
-  - `app-source/hooks/theme_sc_clients_settle.php`
-  - `app-source/hooks/theme_sc_print_settle.php`
-  - `app-source/hooks/code_memberProfileTab.php`
-  - `app-source/hooks/invoiceViewHook.php`
-  - `app-source/hooks/couponNameHook.php`
-- App metadata:
-  - `app-source/data/application.json`
-  - `app-source/data/modules.json`
-  - `app-source/data/tasks.json`
+The front webhook URL is `index.php?app=xpolarcheckout&module=webhook&controller=webhook`.
 
-## 3. Runtime Flow
+## Checkout Flow
 
-### Checkout/Auth
+```mermaid
+sequenceDiagram
+    actor Buyer
+    participant Nexus as IPS Commerce
+    participant Gateway as XPolarCheckout::auth()
+    participant Polar as Polar API
+    participant Webhook as Webhook controller
 
-1. `XPolarCheckout::auth()` creates a Polar checkout session via Polar API.
-2. Session metadata includes IPS transaction/invoice/member references.
-3. Browser is redirected to Polar-hosted checkout page.
-4. For multi-item invoices, items are consolidated into a single Polar line item with configurable label mode.
-5. Optional IPS coupon forwarding creates one-time Polar discounts attached to the checkout.
-6. Amounts are converted to minor units using IPS currency decimal precision (no fixed 2-decimal assumption).
+    Buyer->>Nexus: Select Polar and submit payment
+    Nexus->>Gateway: auth(transaction)
+    Gateway->>Gateway: Validate settings and currency
+    Gateway->>Nexus: Save transaction as gateway pending
+    Gateway->>Gateway: Map products, consolidate cart, apply discount rules
+    Gateway->>Polar: POST /v1/checkouts/
+    Polar-->>Gateway: Checkout ID and hosted URL
+    Gateway->>Nexus: Save checkout ID in t_gw_id
+    Gateway-->>Buyer: Redirect to hosted checkout
+    Buyer->>Polar: Complete payment
+    Polar->>Webhook: Send signed payment event
+    Webhook->>Nexus: Run capture pipeline and persist settlement data
+```
 
-### Webhook Processing
+The success URL returns the buyer to the transaction URL with `pending=1`. It does not mark the invoice paid. Payment capture occurs when a supported signed webhook reports a paid or succeeded state.
 
-Webhook endpoint:
-- `index.php?app=xpolarcheckout&module=webhook&controller=webhook`
+For multi-item invoices, Polar is either hidden by `checkValidity()` when `single_item_only` is configured, or the payable items are consolidated into one product and one combined price. Negative invoice lines are excluded from the product price map and evaluated as an IPS discount.
 
-Handled events in `modules/front/webhook/webhook.php`:
-- `order.paid` — capture payment, persist settlement snapshot, trigger Polar invoice generation
-- `order.created` — gateway pending state (unless terminal)
-- `order.updated` — paid/refunded/partially_refunded state transitions, invoice URL fetch
-- `order.refunded` — full refund status update
-- `refund.created` — acknowledged without state change (no-op)
-- `refund.updated` — partial/full refund based on amounts
-- `checkout.updated` — failed/expired checkout → STATUS_REFUSED
+## Webhook Flow
 
-Security layers:
-- Standard Webhooks signature verification (`webhook-id`, `webhook-timestamp`, `webhook-signature` headers)
-- HMAC-SHA256 with hex-secret normalization for Polar CLI tunnels (strip `whsec_` → hex decode → base64 fallback)
-- Timestamp freshness enforcement (600s window)
-- Event-id-based idempotency via `t_extra.xpolarcheckout_webhook_events` (last 50 event IDs)
-- Terminal-state guardrails prevent regression of paid/refunded transactions
-- Webhook validation failures persisted to `xpc_webhook_forensics` for ACP audit
+```mermaid
+flowchart TD
+    A[Receive JSON body and Standard Webhooks headers] --> B{JSON object?}
+    B -- No --> B1[Log invalid_payload and return 400]
+    B -- Yes --> C[Resolve event type, event ID, and transaction]
+    C --> D{Transaction found?}
+    D -- No --> D1[Return 200 TRANSACTION_NOT_FOUND]
+    D -- Yes --> E{Gateway settings and signature valid?}
+    E -- No --> E1[Log applicable forensic failure and return 400 or 403]
+    E -- Yes --> F{Event already recorded?}
+    F -- Yes --> F1[Return 200 SUCCESS]
+    F -- No --> G{Transaction lock acquired?}
+    G -- No --> F1
+    G -- Yes --> H[Apply event-specific transition]
+    H --> I[Persist transaction and invoice snapshots]
+    I --> J[Record event ID and history]
+    J --> K{order.paid?}
+    K -- Yes --> L[Request Polar invoice generation]
+    K -- No --> M{Generated order.updated?}
+    L --> M
+    M -- Yes --> N[Fetch and persist customer invoice URL]
+    M -- No --> O[Return 200 SUCCESS and release lock]
+    N --> O
+```
 
-### Settlement Snapshot Persistence
+### Event Transitions
 
-On `order.paid`, the webhook persists a snapshot to:
-- `nexus_transactions.t_extra['xpolarcheckout_snapshot']`
-- `nexus_invoices.i_status_extra['xpolarcheckout_snapshot']`
+| Event | Code behavior |
+| --- | --- |
+| `order.created` | Store the order ID and set gateway pending unless the transaction is terminal |
+| `order.paid` | Store the order ID and call `checkFraudRulesAndCapture()` unless already paid or refunded |
+| `order.updated` | Apply paid, pending, partial refund, or full refund state from order fields |
+| `order.refunded` | Derive partial or full refund state from order fields |
+| `refund.created` | Acknowledge without changing transaction state |
+| `refund.updated` | Apply partial or full refund state only when status is `succeeded` |
+| `checkout.updated` | Keep `open` or `confirmed` pending, capture `succeeded`, refuse `failed` or `expired` unless terminal |
 
-Snapshot includes: totals (subtotal/tax/total), discount details (amount/name/code), net amount, refund amounts, billing info (name/reason/email), customer tax IDs, Polar invoice number, provider status, and IPS-vs-provider mismatch detection.
+The signature input is `webhook-id.webhook-timestamp.raw-body`. The controller requires the three Standard Webhooks headers, rejects timestamps outside the 600 second window, and compares the HMAC-SHA256 signature after normalizing the configured secret.
 
-### Settlement Display (Hooks)
+## Snapshot and Display Flow
 
-- `invoiceViewHook` — two-column invoice view with Polar charge summary + payment references (Polar order ID, checkout ID, invoice/PDF/receipt links, billing details)
-- `theme_sc_clients_settle` — settlement block on customer invoice page with provider total vs IPS total
-- `theme_sc_print_settle` — settlement block on printable invoice with charge summary and payment references
+```mermaid
+flowchart LR
+    A[Supported webhook payload] --> B[Build normalized snapshot]
+    B --> C[Transaction t_extra]
+    B --> D[Invoice i_status_extra]
+    D --> E[Front invoice view hook]
+    D --> F[Client settlement theme hook]
+    D --> G[Print invoice theme hook]
+    C --> H[Integrity mismatch queries]
+```
 
-### Invoice View Enhancements (Global)
+Snapshots contain only fields resolved from the event payload plus calculated display and IPS comparison fields. A later event preserves a previously fetched customer invoice URL when its own payload does not include one.
 
-The `invoiceViewHook` also applies global enhancements to all invoices (not just Polar):
-- Products subtotal row inserted before coupon items
-- Coupon items display tag icon and green pricing
-- Duplicate coupon section hidden via CSS
-- Idempotency guard prevents double-enhancement when both Stripe and Polar hooks are active
+## Replay and Monitoring Flow
 
-### Webhook Replay (Outage Recovery)
+```mermaid
+sequenceDiagram
+    participant Task as xpcWebhookReplay
+    participant Polar as Polar deliveries API
+    participant Webhook as Local webhook controller
+    participant Store as IPS datastore
 
-- Task: `xpcWebhookReplay` (every 15 minutes)
-- Fetches failed webhook deliveries from Polar `/v1/webhooks/deliveries` API
-- Filters to required event types and deduplicates by event ID
-- Forwards payloads with valid Standard Webhooks headers/signature
-- Relies on existing idempotency guards to prevent duplicate state transitions
-- State cursor persisted in datastore key `xpolarcheckout_webhook_replay_state`
-- Manual trigger and dry-run available via ACP integrity panel
+    Task->>Store: Load replay cursor
+    Task->>Polar: GET failed deliveries in bounded window
+    Polar-->>Task: Paginated delivery records
+    Task->>Task: Filter supported events and deduplicate IDs
+    alt Dry run
+        Task-->>Task: Return candidate report without forwarding or state change
+    else Live run
+        loop Each candidate
+            Task->>Webhook: POST payload with newly signed headers
+            Webhook-->>Task: Require HTTP 200
+        end
+        Task->>Store: Save run time, cursor, event ID, and replay count
+    end
+```
 
-### ACP Integrity Panel
+`xpcWebhookReplay` runs every 15 minutes. Its configured lookback, overlap, and event limit are clamped in code. It also enforces 10 pages and 120 seconds per run.
 
-- Module: `app=xpolarcheckout&module=monitoring&controller=integrity`
-- Displays: environment badge (sandbox/production), webhook config status, replay task health, error count (24h), mismatch count (30d/all-time), webhook endpoint events drift
-- Actions: manual replay trigger, dry-run replay, acknowledge/delete errors, sync webhook events
+`xpcIntegrityMonitor` runs every 5 minutes. It evaluates local log and snapshot statistics through the admin notification extension. Once per day it deletes `xpc_webhook_forensics` rows older than 90 days. Provider endpoint drift is fetched by the ACP integrity controller, not by the scheduled integrity task.
 
-### Dynamic Product Mapping
+## Implementation Constraints
 
-- Products are created on-demand in Polar when IPS packages are first purchased via this gateway
-- `xpc_product_map` table tracks IPS package ID → Polar product ID mappings
-- ACP product mappings viewer at `app=xpolarcheckout&module=monitoring&controller=products`
-- Bulk "Sync All Names" action patches Polar product names to match current IPS package names
-
-## 4. Known Implementation Notes
-
-- Gateway is injected via hook into `\IPS\nexus\Gateway::gateways()`.
-- Polar API base URLs: production `https://api.polar.sh/v1`, sandbox `https://sandbox-api.polar.sh/v1`.
-- Polar API trailing slash behavior varies by endpoint — creation endpoints use trailing slashes (`/products/`, `/checkouts/`), while list/read endpoints use no trailing slash.
-- Default presentment currency is synced to Polar org via API on gateway settings save.
-- Checkout currency must match the configured presentment currency or auth() returns an error.
-- Replay task uses Polar webhook deliveries API (not events API like Stripe) — fetches failed deliveries for replay.
-- Forensics entries auto-pruned after 90 days by the integrity monitor task (daily check).
+- Production API base: `https://api.polar.sh/v1`
+- Sandbox API base: `https://sandbox-api.polar.sh/v1`
+- Checkout, product, refund, and discount creation calls use endpoint-specific trailing slash forms in the gateway source.
+- Checkout currency must match the configured presentment currency when one is stored.
+- Replay reads failed deliveries from `/webhooks/deliveries` and forwards them through the same local webhook controller used for live events.
