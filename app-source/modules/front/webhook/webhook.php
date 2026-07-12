@@ -55,6 +55,19 @@ class _webhook extends \IPS\Dispatcher\Controller
             return;
         }
 
+        $webhookSecrets = $this->loadWebhookSecrets();
+        if ( !$this->checkSignature( $signature, $body, $webhookSecrets, $eventType, $eventId, $timestamp, $webhookId ) )
+        {
+            return;
+        }
+
+        if ( !\in_array( $eventType, \IPS\xpolarcheckout\XPolarCheckout::REQUIRED_WEBHOOK_EVENTS, TRUE ) )
+        {
+            $this->logForensicEvent( 'unsupported_event_type', 200, $eventType, $eventId, $body );
+            \IPS\Output::i()->sendOutput( 'SUCCESS', 200 );
+            return;
+        }
+
         $transaction = $this->resolveTransactionFromPayload( $payload, $eventType );
         if ( !$transaction )
         {
@@ -74,12 +87,6 @@ class _webhook extends \IPS\Dispatcher\Controller
         if ( !\is_array( $settings ) )
         {
             \IPS\Output::i()->sendOutput( 'INVALID_GATEWAY_SETTINGS', 400 );
-            return;
-        }
-
-        $secret = isset( $settings['webhook_secret'] ) ? (string) $settings['webhook_secret'] : '';
-        if ( !$this->checkSignature( $signature, $body, $secret, $eventType, $eventId, $timestamp, $webhookId ) )
-        {
             return;
         }
 
@@ -180,6 +187,34 @@ class _webhook extends \IPS\Dispatcher\Controller
         }
 
         return 'unknown';
+    }
+
+    /**
+     * Load webhook secrets without resolving a transaction from untrusted payload data.
+     *
+     * @return array
+     */
+    protected function loadWebhookSecrets()
+    {
+        $secrets = array();
+
+        foreach ( \IPS\nexus\Gateway::roots() as $gateway )
+        {
+            if ( !( $gateway instanceof \IPS\xpolarcheckout\XPolarCheckout ) )
+            {
+                continue;
+            }
+
+            $settings = \json_decode( $gateway->settings, TRUE );
+            if ( !\is_array( $settings ) || empty( $settings['webhook_secret'] ) )
+            {
+                continue;
+            }
+
+            $secrets[] = (string) $settings['webhook_secret'];
+        }
+
+        return \array_values( \array_unique( $secrets ) );
     }
 
     /**
@@ -1314,16 +1349,16 @@ class _webhook extends \IPS\Dispatcher\Controller
      *
      * @param string      $signature
      * @param string      $body
-     * @param string      $secret
+     * @param array       $secrets
      * @param string|NULL $eventType
      * @param string|NULL $eventId
      * @param string|NULL $timestamp
      * @param string|NULL $webhookId
      * @return bool
      */
-    protected function checkSignature( $signature, $body, $secret, $eventType = NULL, $eventId = NULL, $timestamp = NULL, $webhookId = NULL )
+    protected function checkSignature( $signature, $body, array $secrets, $eventType = NULL, $eventId = NULL, $timestamp = NULL, $webhookId = NULL )
     {
-        if ( $secret === '' )
+        if ( !$secrets )
         {
             $this->logForensicEvent( 'missing_secret', 403, $eventType, $eventId, $body );
             \IPS\Output::i()->sendOutput( 'INVALID_SIGNATURE', 403 );
@@ -1354,68 +1389,65 @@ class _webhook extends \IPS\Dispatcher\Controller
             return FALSE;
         }
 
-        $secretMaterial = \trim( (string) $secret );
-        if ( \strpos( $secretMaterial, 'whsec_' ) === 0 )
-        {
-            $secretMaterial = (string) \substr( $secretMaterial, 6 );
-        }
-
-        $secretBytes = NULL;
-        if ( \ctype_xdigit( $secretMaterial ) && ( \strlen( $secretMaterial ) % 2 ) === 0 )
-        {
-            $secretBytes = \hex2bin( $secretMaterial );
-        }
-
-        if ( $secretBytes === NULL || $secretBytes === FALSE )
-        {
-            $decoded = \base64_decode( $secretMaterial, TRUE );
-            if ( $decoded !== FALSE )
-            {
-                $secretBytes = $decoded;
-            }
-        }
-
-        if ( $secretBytes === NULL || $secretBytes === FALSE )
-        {
-            /* Local Polar CLI secrets may be provided as raw text in development. */
-            $secretBytes = $secretMaterial;
-        }
-
-        $rawPayload = $webhookIdValue . '.' . $timestampValue . '.' . $body;
-        $computed = \base64_encode( \hash_hmac( 'sha256', (string) $rawPayload, $secretBytes, TRUE ) );
-
         $tokens = \preg_split( '/\s+/', \trim( (string) $signature ) );
-        $matched = FALSE;
-        foreach ( $tokens as $token )
+        $rawPayload = $webhookIdValue . '.' . $timestampValue . '.' . $body;
+
+        foreach ( $secrets as $secret )
         {
-            $pair = \trim( (string) $token );
-            if ( $pair === '' )
+            $secretMaterial = \trim( (string) $secret );
+            if ( \strpos( $secretMaterial, 'whsec_' ) === 0 )
             {
-                continue;
+                $secretMaterial = (string) \substr( $secretMaterial, 6 );
             }
 
-            $parts = \explode( ',', $pair, 2 );
-            if ( \count( $parts ) !== 2 )
+            $secretBytes = NULL;
+            if ( \ctype_xdigit( $secretMaterial ) && ( \strlen( $secretMaterial ) % 2 ) === 0 )
             {
-                continue;
+                $secretBytes = \hex2bin( $secretMaterial );
             }
 
-            $version = \trim( (string) $parts[0] );
-            $candidate = \trim( (string) $parts[1] );
-            if ( $version === 'v1' && $candidate !== '' && \hash_equals( $computed, $candidate ) )
+            if ( $secretBytes === NULL || $secretBytes === FALSE )
             {
-                $matched = TRUE;
-                break;
+                $decoded = \base64_decode( $secretMaterial, TRUE );
+                if ( $decoded !== FALSE )
+                {
+                    $secretBytes = $decoded;
+                }
+            }
+
+            if ( $secretBytes === NULL || $secretBytes === FALSE )
+            {
+                /* Local Polar CLI secrets may be provided as raw text in development. */
+                $secretBytes = $secretMaterial;
+            }
+
+            $computed = \base64_encode( \hash_hmac( 'sha256', (string) $rawPayload, $secretBytes, TRUE ) );
+
+            foreach ( $tokens as $token )
+            {
+                $pair = \trim( (string) $token );
+                if ( $pair === '' )
+                {
+                    continue;
+                }
+
+                $parts = \explode( ',', $pair, 2 );
+                if ( \count( $parts ) !== 2 )
+                {
+                    continue;
+                }
+
+                $version = \trim( (string) $parts[0] );
+                $candidate = \trim( (string) $parts[1] );
+                if ( $version === 'v1' && $candidate !== '' && \hash_equals( $computed, $candidate ) )
+                {
+                    return TRUE;
+                }
             }
         }
 
-        if ( !$matched )
-        {
-            $this->logForensicEvent( 'invalid_signature', 403, $eventType, $eventId, $body );
-            \IPS\Output::i()->sendOutput( 'INVALID_SIGNATURE', 403 );
-            return FALSE;
-        }
-
-        return TRUE;
+        $this->logForensicEvent( 'invalid_signature', 403, $eventType, $eventId, $body );
+        \IPS\Output::i()->sendOutput( 'INVALID_SIGNATURE', 403 );
+        return FALSE;
     }
 }
